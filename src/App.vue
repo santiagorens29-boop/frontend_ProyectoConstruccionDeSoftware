@@ -2,6 +2,12 @@
 import { ref } from 'vue'
 import api from './lib/api'
 import Navbar from './components/Navbar.vue'
+import SideBar from './components/SideBar.vue'
+import Finanzas from './components/views/FinanzasView.vue'
+import ProveedoresCompraView from './components/views/ProveedoresCompraView.vue'
+import SistemasAdministrativosView from './components/views/SistemasAdministrativosView.vue'
+import VentasView from './components/views/VentasView.vue'
+
 
 const status = ref<string>('sin probar')
 const loading = ref(false)
@@ -24,7 +30,10 @@ async function pingApi() {
   <div class="min-vh-100 bg-light">
     <!-- Componente de navegación -->
     <Navbar />
-
+    <div class="d-flex">
+    <SideBar />
+    <ProveedoresCompraView />
+    </div>
     <!-- Contenido principal / Pruebas de integración -->
     <main class="container py-5">
       <div class="row justify-content-center">
