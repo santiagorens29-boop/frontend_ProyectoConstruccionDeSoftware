@@ -31,8 +31,10 @@ async function pingApi() {
     <!-- Componente de navegación -->
     <Navbar />
     <div class="d-flex">
-    <SideBar />
-    <ProveedoresCompraView />
+      <SideBar />
+      <div class="flex-grow-1" style="background-color: #E8DCC3;">
+        <Finanzas />
+      </div>
     </div>
     <!-- Contenido principal / Pruebas de integración -->
     <main class="container py-5">
