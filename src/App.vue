@@ -1,62 +1,65 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import api from './lib/api'
-import Navbar from './components/Navbar.vue'
+import { ref, computed } from 'vue'
+import Navbar from './components/NavBar.vue'
 import SideBar from './components/SideBar.vue'
-import Finanzas from './components/views/FinanzasView.vue'
-import ProveedoresCompraView from './components/views/ProveedoresCompraView.vue'
-import SistemasAdministrativosView from './components/views/SistemasAdministrativosView.vue'
-import VentasView from './components/views/VentasView.vue'
+import ProveedoresView from './views/ProveedoresView.vue'
 
+// Estado del módulo general activo
+const moduloActivo = ref('proveedores')
 
-const status = ref<string>('sin probar')
-const loading = ref(false)
-
-async function pingApi() {
-  loading.value = true
-  status.value = 'consultando...'
-  try {
-    const { data } = await api.get('/health')
-    status.value = `OK: ${JSON.stringify(data)}`
-  } catch (e) {
-    status.value = `Error al conectar con la API`
-  } finally {
-    loading.value = false
+// Configuración dinámica del Sidebar según el módulo
+const accionesSidebar = computed(() => {
+  if (moduloActivo.value === 'proveedores') {
+    return {
+      accion1: {
+        titulo: 'Gestión de Proveedores',
+        descripcion: 'Alta, baja y modificación de proveedores'
+      },
+      accion2: {
+        titulo: 'Órdenes de Compra',
+        descripcion: 'Consultar y registrar compras a proveedores'
+      }
+    }
   }
-}
+
+  // Fallback para otros módulos
+  return {
+    accion1: {
+      titulo: 'Cierre contable de período',
+      descripcion: 'Ejecutar checklist y cerrar el mes'
+    },
+    accion2: {
+      titulo: 'Registrar pago a proveedor',
+      descripcion: 'Cancelar facturas pendientes'
+    }
+  }
+})
 </script>
 
 <template>
-  <div class="min-vh-100 bg-light">
-    <!-- Componente de navegación -->
-    <Navbar />
-    <div class="d-flex">
-      <SideBar />
-      <div class="flex-grow-1" style="background-color: #E8DCC3;">
-        <Finanzas />
-      </div>
-    </div>
-    <!-- Contenido principal / Pruebas de integración -->
-    <main class="container py-5">
-      <div class="row justify-content-center">
-        <div class="col-lg-8">
-          <h1 class="mb-3">El Coralon - ERP</h1>
-          <p class="text-body-secondary">Stack: Vite · Vue 3 · Bootstrap 5 · Axios · TypeScript</p>
+  <div class="d-flex flex-column min-vh-100 bg-light">
+    <!-- Navbar superior -->
+    <Navbar 
+      :modulo-activo="moduloActivo" 
+      @cambiar-modulo="(nuevoModulo) => moduloActivo = nuevoModulo" 
+    />
 
-          <div class="card shadow-sm">
-            <div class="card-body">
-              <h5 class="card-title">Prueba de Axios</h5>
-              <p class="card-text">
-                Estado: <span class="badge text-bg-secondary">{{ status }}</span>
-              </p>
-              <button class="btn btn-primary" :disabled="loading" @click="pingApi">
-                <span v-if="loading" class="spinner-border spinner-border-sm me-2"></span>
-                Probar GET /health
-              </button>
-            </div>
-          </div>
+    <!-- Contenedor Principal: Sidebar + Vista -->
+    <div class="d-flex flex-grow-1">
+      <SideBar 
+        :accion1="accionesSidebar.accion1" 
+        :accion2="accionesSidebar.accion2" 
+      />
+
+      <main class="flex-grow-1 p-4">
+        <!-- Renderiza la vista del módulo activo -->
+        <ProveedoresView v-if="moduloActivo === 'proveedores'" />
+        
+        <div v-else class="text-center py-5">
+          <h4 class="text-muted">Módulo en construcción</h4>
+          <p class="text-secondary">Seleccione "Proveedores y Compra" en la barra superior.</p>
         </div>
-      </div>
-    </main>
+      </main>
+    </div>
   </div>
 </template>
