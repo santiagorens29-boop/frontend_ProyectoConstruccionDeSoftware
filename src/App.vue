@@ -1,19 +1,33 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
-import Navbar from './components/NavBar.vue'
+import Navbar from './components/Navbar.vue'
 import SideBar from './components/SideBar.vue'
 import ProveedoresView from './views/ProveedoresView.vue'
+import ProductosView from './views/ProductosView.vue'
 
-// Estado del módulo general activo
-const moduloActivo = ref('proveedores')
+// Estado del módulo general activo (coincide con los botones del Navbar)
+const moduloActivo = ref('administrativos')
 
-// Configuración dinámica del Sidebar según el módulo
+// Configuración dinámica del Sidebar según el módulo activo
 const accionesSidebar = computed(() => {
+  if (moduloActivo.value === 'administrativos') {
+    return {
+      accion1: {
+        titulo: 'Catálogo de Productos',
+        descripcion: 'Gestión de artículos, precios y stock mínimo'
+      },
+      accion2: {
+        titulo: 'Cargar Stock',
+        descripcion: 'Ingreso manual de mercadería a inventario'
+      }
+    }
+  }
+
   if (moduloActivo.value === 'proveedores') {
     return {
       accion1: {
         titulo: 'Gestión de Proveedores',
-        descripcion: 'Alta, baja y modificación de proveedores'
+        descripcion: 'Alta, consulta y modificación de proveedores'
       },
       accion2: {
         titulo: 'Órdenes de Compra',
@@ -22,7 +36,7 @@ const accionesSidebar = computed(() => {
     }
   }
 
-  // Fallback para otros módulos
+  // Fallback para otros módulos (Finanzas / Ventas)
   return {
     accion1: {
       titulo: 'Cierre contable de período',
@@ -44,7 +58,7 @@ const accionesSidebar = computed(() => {
       @cambiar-modulo="(nuevoModulo) => moduloActivo = nuevoModulo" 
     />
 
-    <!-- Contenedor Principal: Sidebar + Vista -->
+    <!-- Contenedor Principal: Sidebar + Vista activa -->
     <div class="d-flex flex-grow-1">
       <SideBar 
         :accion1="accionesSidebar.accion1" 
@@ -52,12 +66,16 @@ const accionesSidebar = computed(() => {
       />
 
       <main class="flex-grow-1 p-4">
-        <!-- Renderiza la vista del módulo activo -->
-        <ProveedoresView v-if="moduloActivo === 'proveedores'" />
+        <!-- Sistemas Administrativos -> Productos -->
+        <ProductosView v-if="moduloActivo === 'administrativos'" />
+
+        <!-- Proveedores y Compra -> Proveedores -->
+        <ProveedoresView v-else-if="moduloActivo === 'proveedores'" />
         
+        <!-- Vista temporal para módulos no implementados -->
         <div v-else class="text-center py-5">
           <h4 class="text-muted">Módulo en construcción</h4>
-          <p class="text-secondary">Seleccione "Proveedores y Compra" en la barra superior.</p>
+          <p class="text-secondary">Seleccione "Sistemas Administrativos" o "Proveedores y Compra".</p>
         </div>
       </main>
     </div>
