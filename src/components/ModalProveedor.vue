@@ -14,7 +14,6 @@ const emit = defineEmits<{
   (e: 'guardar', proveedor: Proveedor | NuevoProveedor): void
 }>()
 
-// Estado interno del formulario
 const formulario = ref<NuevoProveedor & { proveedor_id?: number }>({
   nombre: '',
   apellido: '',
@@ -24,7 +23,6 @@ const formulario = ref<NuevoProveedor & { proveedor_id?: number }>({
   direccion: ''
 })
 
-// Sincroniza los datos cuando cambia la prop (edición o nuevo)
 watch(
   () => props.proveedorAEditar,
   (nuevoValor) => {
@@ -55,10 +53,8 @@ function guardarProveedor() {
 
 <template>
   <div v-if="mostrar">
-    <!-- Backdrop oscuro difuso -->
     <div class="modal-backdrop fade show"></div>
 
-    <!-- Contenedor del Modal -->
     <div
       class="modal fade show d-block"
       tabindex="-1"
@@ -66,9 +62,9 @@ function guardarProveedor() {
       aria-modal="true"
     >
       <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content shadow">
-          <!-- Encabezado -->
-          <div class="modal-header bg-primary text-white">
+        <div class="modal-content shadow border-0 overflow-hidden">
+          <!-- Cabecera institucional -->
+          <div class="modal-header modal-header-custom text-white px-4 py-3">
             <h5 class="modal-title fw-bold">
               {{ proveedorAEditar ? 'Editar Proveedor' : 'Nuevo Proveedor' }}
             </h5>
@@ -80,13 +76,12 @@ function guardarProveedor() {
             ></button>
           </div>
 
-          <!-- Cuerpo / Formulario -->
+          <!-- Formulario -->
           <form @submit.prevent="guardarProveedor">
-            <div class="modal-body p-4">
+            <div class="modal-body p-4 bg-white">
               <div class="row g-3">
-                <!-- ID bloqueado si es edición -->
                 <div v-if="proveedorAEditar" class="col-md-12">
-                  <label class="form-label fw-semibold">ID Proveedor</label>
+                  <label class="form-label fw-semibold text-dark">ID Proveedor</label>
                   <input
                     type="text"
                     class="form-control bg-light"
@@ -96,66 +91,66 @@ function guardarProveedor() {
                 </div>
 
                 <div class="col-md-6">
-                  <label class="form-label fw-semibold">Nombre / Razón Social *</label>
+                  <label class="form-label fw-semibold text-dark">Nombre / Razón Social *</label>
                   <input
                     v-model="formulario.nombre"
                     type="text"
-                    class="form-control"
+                    class="form-control custom-input"
                     placeholder="Ej: Loma Negra"
                     required
                   />
                 </div>
 
                 <div class="col-md-6">
-                  <label class="form-label fw-semibold">Apellido / Denominación *</label>
+                  <label class="form-label fw-semibold text-dark">Apellido / Denominación *</label>
                   <input
                     v-model="formulario.apellido"
                     type="text"
-                    class="form-control"
+                    class="form-control custom-input"
                     placeholder="Ej: S.A."
                     required
                   />
                 </div>
 
                 <div class="col-md-6">
-                  <label class="form-label fw-semibold">CUIT *</label>
+                  <label class="form-label fw-semibold text-dark">CUIT *</label>
                   <input
                     v-model="formulario.cuit"
                     type="text"
-                    class="form-control"
+                    class="form-control custom-input"
                     placeholder="30-00000000-0"
                     required
                   />
                 </div>
 
                 <div class="col-md-6">
-                  <label class="form-label fw-semibold">Email *</label>
+                  <label class="form-label fw-semibold text-dark">Email *</label>
                   <input
                     v-model="formulario.email"
                     type="email"
-                    class="form-control"
+                    class="form-control custom-input"
                     placeholder="contacto@empresa.com"
                     required
                   />
                 </div>
 
                 <div class="col-md-6">
-                  <label class="form-label fw-semibold">Teléfono *</label>
+                  <label class="form-label fw-semibold text-dark">Teléfono *</label>
                   <input
                     v-model="formulario.telefono"
                     type="text"
-                    class="form-control"
+                    class="form-control custom-input"
                     placeholder="011-1234-5678"
                     required
                   />
                 </div>
 
                 <div class="col-md-6">
-                  <label class="form-label fw-semibold">Dirección *</label>
+                  <label class="form-label fw-semibold text-dark">Dirección *</label>
                   <input
                     v-model="formulario.direccion"
                     type="text"
-                    class="form-control"
+                    class="form-control custom-input"
                     placeholder="Calle 123, Localidad"
                     required
                   />
@@ -163,8 +158,8 @@ function guardarProveedor() {
               </div>
             </div>
 
-            <!-- Pie del Modal con acciones -->
-            <div class="modal-footer bg-light">
+            <!-- Footer con botones institucionales -->
+            <div class="modal-footer bg-light px-4 py-3 border-top">
               <button
                 type="button"
                 class="btn btn-secondary px-4"
@@ -172,7 +167,7 @@ function guardarProveedor() {
               >
                 Cancelar
               </button>
-              <button type="submit" class="btn btn-primary px-4 fw-semibold">
+              <button type="submit" class="btn btn-coralon px-4 fw-semibold">
                 {{ proveedorAEditar ? 'Guardar Cambios' : 'Crear Proveedor' }}
               </button>
             </div>
@@ -185,6 +180,29 @@ function guardarProveedor() {
 
 <style scoped>
 .modal-backdrop {
-  opacity: 0.5;
+  opacity: 0.6;
+}
+
+.modal-header-custom {
+  background-color: #231f1d;
+  border-bottom: 3px solid #b33e14;
+}
+
+.custom-input:focus {
+  border-color: #b33e14;
+  box-shadow: 0 0 0 0.25rem rgba(179, 62, 20, 0.2);
+}
+
+.btn-coralon {
+  background-color: #b33e14;
+  border-color: #b33e14;
+  color: #ffffff;
+  transition: background-color 0.2s, border-color 0.2s;
+}
+
+.btn-coralon:hover {
+  background-color: #ff7a45;
+  border-color: #ff7a45;
+  color: #ffffff;
 }
 </style>
