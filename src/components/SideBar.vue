@@ -1,8 +1,4 @@
 <script setup lang="ts">
-// Estructura fija: siempre 2 tarjetas de acción, como en el mockup.
-// El TEXTO de cada una es configurable por prop, porque cambia según
-// la pestaña/módulo activo (Finanzas, Ventas, etc). Si nadie pasa
-// props, se muestran estos valores de ejemplo por defecto.
 export interface AccionSidebar {
   titulo: string
   descripcion: string
@@ -12,18 +8,24 @@ withDefaults(
   defineProps<{
     accion1?: AccionSidebar
     accion2?: AccionSidebar
+    subVistaActiva?: 'opcion1' | 'opcion2'
   }>(),
   {
     accion1: () => ({
-      titulo: 'Cierre contable de período',
-      descripcion: 'Ejecutar checklist y cerrar el mes',
+      titulo: 'Facturar Órdenes',
+      descripcion: 'Emisión de comprobantes contables',
     }),
     accion2: () => ({
-      titulo: 'Registrar pago a proveedor',
-      descripcion: 'Cancelar facturas pendientes',
+      titulo: 'Cierre y Libro Diario',
+      descripcion: 'Cierre mensual y asientos contables',
     }),
+    subVistaActiva: 'opcion1'
   }
 )
+
+const emit = defineEmits<{
+  (e: 'seleccionar-accion', opcion: 'opcion1' | 'opcion2'): void
+}>()
 </script>
 
 <template>
@@ -32,7 +34,12 @@ withDefaults(
 
     <div class="d-flex flex-column gap-2">
       <!-- Tarjeta 1 -->
-      <a href="#" class="accion-card d-flex align-items-start gap-2 p-3 text-decoration-none rounded">
+      <a 
+        href="#" 
+        class="accion-card d-flex align-items-start gap-2 p-3 text-decoration-none rounded"
+        :class="{ 'tarjeta-activa': subVistaActiva === 'opcion1' }"
+        @click.prevent="emit('seleccionar-accion', 'opcion1')"
+      >
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16" class="icono mt-1">
           <path d="M8 1a2 2 0 0 1 2 2v4H6V3a2 2 0 0 1 2-2m3 6V3a3 3 0 0 0-6 0v4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2"/>
         </svg>
@@ -43,7 +50,12 @@ withDefaults(
       </a>
 
       <!-- Tarjeta 2 -->
-      <a href="#" class="accion-card d-flex align-items-start gap-2 p-3 text-decoration-none rounded">
+      <a 
+        href="#" 
+        class="accion-card d-flex align-items-start gap-2 p-3 text-decoration-none rounded"
+        :class="{ 'tarjeta-activa': subVistaActiva === 'opcion2' }"
+        @click.prevent="emit('seleccionar-accion', 'opcion2')"
+      >
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16" class="icono mt-1">
           <path d="M2 4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v10a1 1 0 0 1-1.6.8L8 12.25l-4.4 2.55A1 1 0 0 1 2 14z"/>
         </svg>
@@ -57,7 +69,6 @@ withDefaults(
 </template>
 
 <style scoped>
-/* Misma paleta que usa Navbar.vue, para que combinen visualmente */
 .custom-sidebar {
   width: 260px;
   min-height: 100vh;
@@ -81,6 +92,12 @@ withDefaults(
 .accion-card:hover {
   background-color: #332d2a;
   border-color: #c9881e;
+}
+
+.tarjeta-activa {
+  background-color: #332d2a !important;
+  border-color: #b33e14 !important;
+  border-left: 4px solid #b33e14 !important;
 }
 
 .icono {
