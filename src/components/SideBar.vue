@@ -1,101 +1,90 @@
 <script setup lang="ts">
-// Estructura fija: siempre 2 tarjetas de acción, como en el mockup.
-// El TEXTO de cada una es configurable por prop, porque cambia según
-// la pestaña/módulo activo (Finanzas, Ventas, etc). Si nadie pasa
-// props, se muestran estos valores de ejemplo por defecto.
-export interface AccionSidebar {
+interface Accion {
   titulo: string
   descripcion: string
 }
 
-withDefaults(
-  defineProps<{
-    accion1?: AccionSidebar
-    accion2?: AccionSidebar
-  }>(),
-  {
-    accion1: () => ({
-      titulo: 'Cierre contable de período',
-      descripcion: 'Ejecutar checklist y cerrar el mes',
-    }),
-    accion2: () => ({
-      titulo: 'Registrar pago a proveedor',
-      descripcion: 'Cancelar facturas pendientes',
-    }),
-  }
-)
+interface Props {
+  accion1: Accion
+  accion2: Accion
+  subVistaActiva?: string
+}
+
+defineProps<Props>()
+
+const emit = defineEmits<{
+  (e: 'seleccionar-accion', opcion: 'opcion1' | 'opcion2'): void
+}>()
 </script>
 
 <template>
-  <aside class="custom-sidebar p-3">
-    <h6 class="sidebar-title text-uppercase mb-3">Acciones del módulo</h6>
+  <aside class="sidebar-custom d-flex flex-column flex-shrink-0 p-3 text-white">
+    <span class="fs-6 fw-bold text-uppercase mb-3 px-2 text-warning letter-spacing">
+      Acciones Rápidas
+    </span>
 
-    <div class="d-flex flex-column gap-2">
-      <!-- Tarjeta 1 -->
-      <a href="#" class="accion-card d-flex align-items-start gap-2 p-3 text-decoration-none rounded">
-        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16" class="icono mt-1">
-          <path d="M8 1a2 2 0 0 1 2 2v4H6V3a2 2 0 0 1 2-2m3 6V3a3 3 0 0 0-6 0v4a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2"/>
-        </svg>
-        <div>
-          <div class="accion-titulo fw-bold">{{ accion1.titulo }}</div>
-          <div class="accion-descripcion">{{ accion1.descripcion }}</div>
+    <div class="d-flex flex-column gap-3">
+      <!-- Tarjeta Acción 1 -->
+      <div 
+        class="card card-action border-0 p-3 text-start"
+        :class="{ 'tarjeta-activa': subVistaActiva === 'opcion1' }"
+        style="cursor: pointer;"
+        @click="emit('seleccionar-accion', 'opcion1')"
+      >
+        <div class="d-flex align-items-center gap-2 mb-1">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="text-warning" viewBox="0 0 16 16">
+            <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4"/>
+          </svg>
+          <strong class="text-white fs-6">{{ accion1.titulo }}</strong>
         </div>
-      </a>
+        <small class="text-white-50">{{ accion1.descripcion }}</small>
+      </div>
 
-      <!-- Tarjeta 2 -->
-      <a href="#" class="accion-card d-flex align-items-start gap-2 p-3 text-decoration-none rounded">
-        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16" class="icono mt-1">
-          <path d="M2 4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v10a1 1 0 0 1-1.6.8L8 12.25l-4.4 2.55A1 1 0 0 1 2 14z"/>
-        </svg>
-        <div>
-          <div class="accion-titulo fw-bold">{{ accion2.titulo }}</div>
-          <div class="accion-descripcion">{{ accion2.descripcion }}</div>
+      <!-- Tarjeta Acción 2 -->
+      <div 
+        class="card card-action border-0 p-3 text-start"
+        :class="{ 'tarjeta-activa': subVistaActiva === 'opcion2' }"
+        style="cursor: pointer;"
+        @click="emit('seleccionar-accion', 'opcion2')"
+      >
+        <div class="d-flex align-items-center gap-2 mb-1">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="text-warning" viewBox="0 0 16 16">
+            <path d="M14 1a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H2a1 1 0 0 1-1-1V2a1 1 0 0 1 1-1zM2 0a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2z"/>
+            <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4"/>
+          </svg>
+          <strong class="text-white fs-6">{{ accion2.titulo }}</strong>
         </div>
-      </a>
+        <small class="text-white-50">{{ accion2.descripcion }}</small>
+      </div>
     </div>
   </aside>
 </template>
 
 <style scoped>
-/* Misma paleta que usa Navbar.vue, para que combinen visualmente */
-.custom-sidebar {
-  width: 260px;
-  min-height: 100vh;
+.sidebar-custom {
+  width: 280px;
+  min-height: calc(100vh - 65px);
   background-color: #231f1d;
-  border-right: 1px solid #332d2a;
+  border-right: 2px solid #332d2a;
 }
 
-.sidebar-title {
-  color: #b0ada8;
-  font-size: 0.75rem;
-  letter-spacing: 0.5px;
+.letter-spacing {
+  letter-spacing: 0.8px;
 }
 
-.accion-card {
-  background-color: #2c2724;
-  border: 1px solid #3d3733;
-  color: #ffffff;
-  transition: background-color 0.15s, border-color 0.15s;
+.card-action {
+  background-color: #2f2a27;
+  border-left: 4px solid transparent !important;
+  transition: all 0.2s ease-in-out;
 }
 
-.accion-card:hover {
-  background-color: #332d2a;
-  border-color: #c9881e;
+.card-action:hover {
+  background-color: #3d3733;
+  border-left-color: #c9881e !important;
 }
 
-.icono {
-  color: #c9881e;
-  flex-shrink: 0;
-}
-
-.accion-titulo {
-  font-size: 0.95rem;
-  line-height: 1.2;
-  color: #ffffff;
-}
-
-.accion-descripcion {
-  font-size: 0.8rem;
-  color: #b0ada8;
+.tarjeta-activa {
+  background-color: #3d3733 !important;
+  border-left-color: #b33e14 !important;
 }
 </style>

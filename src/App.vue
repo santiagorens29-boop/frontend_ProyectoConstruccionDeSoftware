@@ -4,21 +4,44 @@ import Navbar from './components/Navbar.vue'
 import SideBar from './components/SideBar.vue'
 import ProveedoresView from './views/ProveedoresView.vue'
 import ProductosView from './views/ProductosView.vue'
+import FinanzasFacturacionView from './views/FinanzasFacturacionView.vue'
+import FinanzasCierreView from './views/FinanzasCierreView.vue'
 
-// Estado del módulo general activo (coincide con los botones del Navbar)
-const moduloActivo = ref('administrativos')
+// Estado del módulo general activo (Navbar)
+const moduloActivo = ref('finanzas')
+
+// Estado de la sub-acción dentro del módulo activo (Sidebar)
+const subVistaActiva = ref<'opcion1' | 'opcion2'>('opcion1')
+
+function cambiarModulo(nuevoModulo: string) {
+  moduloActivo.value = nuevoModulo
+  subVistaActiva.value = 'opcion1' // Resetea a la primera sub-vista por defecto
+}
 
 // Configuración dinámica del Sidebar según el módulo activo
 const accionesSidebar = computed(() => {
+  if (moduloActivo.value === 'finanzas') {
+    return {
+      accion1: {
+        titulo: 'Facturar Órdenes',
+        descripcion: 'Emisión de comprobantes contables'
+      },
+      accion2: {
+        titulo: 'Cierre y Libro Diario',
+        descripcion: 'Cierre mensual y asientos contables'
+      }
+    }
+  }
+
   if (moduloActivo.value === 'administrativos') {
     return {
       accion1: {
         titulo: 'Catálogo de Productos',
-        descripcion: 'Gestión de artículos, precios y stock mínimo'
+        descripcion: 'Gestión de artículos, precios y stock'
       },
       accion2: {
         titulo: 'Cargar Stock',
-        descripcion: 'Ingreso manual de mercadería a inventario'
+        descripcion: 'Ingreso manual de mercadería'
       }
     }
   }
@@ -36,15 +59,14 @@ const accionesSidebar = computed(() => {
     }
   }
 
-  // Fallback para otros módulos (Finanzas / Ventas)
   return {
     accion1: {
-      titulo: 'Cierre contable de período',
-      descripcion: 'Ejecutar checklist y cerrar el mes'
+      titulo: 'Acción Principal',
+      descripcion: 'Detalle de la acción'
     },
     accion2: {
-      titulo: 'Registrar pago a proveedor',
-      descripcion: 'Cancelar facturas pendientes'
+      titulo: 'Acción Secundaria',
+      descripcion: 'Detalle de la acción secundaria'
     }
   }
 })
@@ -55,27 +77,44 @@ const accionesSidebar = computed(() => {
     <!-- Navbar superior -->
     <Navbar 
       :modulo-activo="moduloActivo" 
-      @cambiar-modulo="(nuevoModulo) => moduloActivo = nuevoModulo" 
+      @cambiar-modulo="cambiarModulo" 
     />
 
-    <!-- Contenedor Principal: Sidebar + Vista activa -->
+    <!-- Contenedor Principal -->
     <div class="d-flex flex-grow-1">
       <SideBar 
         :accion1="accionesSidebar.accion1" 
-        :accion2="accionesSidebar.accion2" 
+        :accion2="accionesSidebar.accion2"
+        :sub-vista-activa="subVistaActiva"
+        @seleccionar-accion="(opcion) => subVistaActiva = opcion" 
       />
 
       <main class="flex-grow-1 p-4">
-        <!-- Sistemas Administrativos -> Productos -->
-        <ProductosView v-if="moduloActivo === 'administrativos'" />
+        <!-- Módulo Finanzas -->
+        <template v-if="moduloActivo === 'finanzas'">
+          <FinanzasFacturacionView v-if="subVistaActiva === 'opcion1'" />
+          <FinanzasCierreView v-else />
+        </template>
 
-        <!-- Proveedores y Compra -> Proveedores -->
-        <ProveedoresView v-else-if="moduloActivo === 'proveedores'" />
-        
-        <!-- Vista temporal para módulos no implementados -->
+        <!-- Módulo Sistemas Administrativos -->
+        <template v-else-if="moduloActivo === 'administrativos'">
+          <ProductosView v-if="subVistaActiva === 'opcion1'" />
+          <div v-else class="text-center py-5">
+            <h4 class="text-muted">Cargar Stock en Construcción</h4>
+          </div>
+        </template>
+
+        <!-- Módulo Proveedores y Compra -->
+        <template v-else-if="moduloActivo === 'proveedores'">
+          <ProveedoresView v-if="subVistaActiva === 'opcion1'" />
+          <div v-else class="text-center py-5">
+            <h4 class="text-muted">Órdenes de Compra en Construcción</h4>
+          </div>
+        </template>
+
+        <!-- Fallback -->
         <div v-else class="text-center py-5">
           <h4 class="text-muted">Módulo en construcción</h4>
-          <p class="text-secondary">Seleccione "Sistemas Administrativos" o "Proveedores y Compra".</p>
         </div>
       </main>
     </div>
