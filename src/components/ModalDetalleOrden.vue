@@ -4,15 +4,20 @@ import type { OrdenComercial } from '../types/finanzas'
 interface Props {
   mostrar: boolean
   orden: OrdenComercial | null
+  permitirVolverAPendiente?: boolean
+  actualizandoEstado?: boolean
+  errorEstado?: string
 }
 
-defineProps<Props>()
+const props = defineProps<Props>()
 
 const emit = defineEmits<{
   (e: 'cerrar'): void
+  (e: 'volver-a-pendiente'): void
 }>()
 
 function cerrar() {
+  if (props.actualizandoEstado) return
   emit('cerrar')
 }
 </script>
@@ -33,11 +38,12 @@ function cerrar() {
               </span>
               <h5 class="modal-title fw-bold mb-0">Orden #{{ orden.orden_id }}</h5>
             </div>
-            <button type="button" class="btn-close btn-close-white" aria-label="Cerrar" @click="cerrar"></button>
+            <button type="button" class="btn-close btn-close-white" aria-label="Cerrar" :disabled="actualizandoEstado" @click="cerrar"></button>
           </div>
 
           <!-- Body -->
           <div class="modal-body p-4 bg-white">
+            <div v-if="errorEstado" class="alert alert-danger" role="alert">{{ errorEstado }}</div>
             <div class="row g-3 mb-4 p-3 bg-light rounded border">
               <div class="col-md-4">
                 <span class="text-muted small d-block">Fecha</span>
@@ -49,7 +55,7 @@ function cerrar() {
               </div>
               <div class="col-md-3">
                 <span class="text-muted small d-block">Estado</span>
-                <span class="badge bg-warning text-dark">{{ orden.estado_nombre }}</span>
+                <span class="badge" :class="orden.estado_nombre === 'Aprobada' ? 'bg-success' : 'bg-warning text-dark'">{{ orden.estado_nombre }}</span>
               </div>
             </div>
 
@@ -85,7 +91,16 @@ function cerrar() {
 
           <!-- Footer -->
           <div class="modal-footer bg-light px-4 py-3 border-top">
-            <button type="button" class="btn btn-secondary px-4" @click="cerrar">Cerrar</button>
+            <button
+              v-if="permitirVolverAPendiente && orden.tipo_orden === 'Compra' && orden.estado_nombre === 'Aprobada'"
+              type="button"
+              class="btn btn-outline-coralon px-3 fw-semibold"
+              :disabled="actualizandoEstado"
+              @click="emit('volver-a-pendiente')"
+            >
+              {{ actualizandoEstado ? 'Actualizando…' : 'Volver a pendiente' }}
+            </button>
+            <button type="button" class="btn btn-secondary px-4" :disabled="actualizandoEstado" @click="cerrar">Cerrar</button>
           </div>
 
         </div>
@@ -106,5 +121,15 @@ function cerrar() {
 
 .text-coralon {
   color: #b33e14;
+}
+
+.btn-outline-coralon {
+  border-color: #b33e14;
+  color: #b33e14;
+}
+
+.btn-outline-coralon:hover:not(:disabled) {
+  background-color: #b33e14;
+  color: #ffffff;
 }
 </style>
