@@ -3,17 +3,111 @@ import { ref, computed, onMounted } from 'vue'
 import ModalNuevaOrdenCompra from '../components/ModalNuevaOrdenCompra.vue'
 import { PROVEEDORES_MOCK } from '../types/proveedor'
 import { PRODUCTOS_MOCK } from '../types/producto'
-import type { NuevaOrdenCompra, OrdenCompraCabecera } from '../types/compra'
-import type { OrdenComercial } from '../types/finanzas'
 import {
-  getOrdenCompraCabeceras,
-  getOrdenCompraDetalles,
-  postOrdenCompraCabecera,
-  postOrdenCompraDetalle,
-  aprobarOrdenCompra,
-  cancelarOrdenCompra,
-  actualizarEstadoOrdenCompra
-} from '../lib/ordenesCompra'
+  CABECERAS_COMPRA_MOCK,
+  DETALLES_COMPRA_MOCK,
+  type NuevaOrdenCompra,
+  type NuevaOrdenCompraCabecera,
+  type NuevoOrdenCompraDetalle,
+  type OrdenCompraCabecera,
+  type OrdenCompraDetalle
+} from '../types/compra'
+import type { OrdenComercial } from '../types/finanzas'
+
+
+// Simulación en memoria de las operaciones de órdenes de compra.
+// Reemplazar sus implementaciones por llamadas a api.ts al definir el backend.
+const cabecerasCompra = ref<OrdenCompraCabecera[]>(CABECERAS_COMPRA_MOCK.map(item => ({ ...item })))
+const detallesCompra = ref<OrdenCompraDetalle[]>(DETALLES_COMPRA_MOCK.map(item => ({ ...item })))
+
+async function getOrdenCompraCabeceras(): Promise<OrdenCompraCabecera[]> {
+  return cabecerasCompra.value.map(item => ({ ...item }))
+}
+
+async function getOrdenCompraDetalles(): Promise<OrdenCompraDetalle[]> {
+  return detallesCompra.value.map(item => ({ ...item }))
+}
+
+async function actualizarEstadoOrdenCompra(
+  ordencompra_id: number,
+  estado: OrdenCompraCabecera['estado']
+): Promise<OrdenCompraCabecera> {
+  const cabecera = cabecerasCompra.value.find(item => item.ordencompra_id === ordencompra_id)
+  if (!cabecera) throw new Error('No existe la orden de compra.')
+  if (!['Pendiente', 'Aprobada', 'Cancelada'].includes(estado)) {
+    throw new Error('El estado de la orden no es válido.')
+  }
+  if (estado === 'Aprobada' && !detallesCompra.value.some(item => item.ordencompra_id === ordencompra_id)) {
+    throw new Error('No se puede aprobar una orden sin productos registrados.')
+  }
+  cabecera.estado = estado
+  return { ...cabecera }
+}
+
+async function aprobarOrdenCompra(ordencompra_id: number): Promise<OrdenCompraCabecera> {
+  const cabecera = cabecerasCompra.value.find(item => item.ordencompra_id === ordencompra_id)
+  if (!cabecera) throw new Error('No existe la orden de compra.')
+  if (cabecera.estado !== 'Pendiente') throw new Error('Solo se pueden aprobar órdenes pendientes.')
+  if (!detallesCompra.value.some(item => item.ordencompra_id === ordencompra_id)) {
+    throw new Error('No se puede aprobar una orden sin productos registrados.')
+  }
+  cabecera.estado = 'Aprobada'
+  return { ...cabecera }
+}
+
+async function cancelarOrdenCompra(ordencompra_id: number): Promise<OrdenCompraCabecera> {
+  const cabecera = cabecerasCompra.value.find(item => item.ordencompra_id === ordencompra_id)
+  if (!cabecera) throw new Error('No existe la orden de compra.')
+  if (cabecera.estado === 'Cancelada') throw new Error('La orden ya está cancelada.')
+  cabecera.estado = 'Cancelada'
+  return { ...cabecera }
+}
+
+async function postOrdenCompraCabecera(datos: NuevaOrdenCompraCabecera): Promise<OrdenCompraCabecera> {
+  if (!PROVEEDORES_MOCK.some(item => item.proveedor_id === datos.proveedor_id)
+    || !datos.solicitante?.trim()
+    || !/^\d{4}-\d{2}-\d{2}$/.test(datos.fecha)
+    || !Number.isFinite(datos.total) || datos.total <= 0) {
+    throw new Error('La cabecera requiere solicitante interno, proveedor, fecha y total válidos.')
+  }
+  const cabecera: OrdenCompraCabecera = {
+    ...datos,
+    solicitante: datos.solicitante.trim(),
+    ordencompra_id: Math.max(0, ...cabecerasCompra.value.map(item => item.ordencompra_id)) + 1,
+    estado: 'Pendiente'
+  }
+  cabecerasCompra.value.push(cabecera)
+  return { ...cabecera }
+}
+
+// El POST de detalle recibe todos los ítems de la cabecera en una sola operación.
+async function postOrdenCompraDetalle(
+  ordencompra_id: number,
+  items: NuevoOrdenCompraDetalle[]
+): Promise<OrdenCompraDetalle[]> {
+  const cabecera = cabecerasCompra.value.find(item => item.ordencompra_id === ordencompra_id)
+  if (!cabecera) throw new Error('No existe la cabecera de la orden.')
+  if (detallesCompra.value.some(item => item.ordencompra_id === ordencompra_id)) {
+    throw new Error('La orden ya tiene detalles registrados.')
+  }
+  if (!items.length || items.some(item =>
+    !PRODUCTOS_MOCK.some(producto => producto.producto_id === item.producto_id)
+    || !Number.isFinite(item.cantidad) || item.cantidad <= 0
+    || !Number.isFinite(item.preciounitario) || item.preciounitario <= 0
+  )) throw new Error('Cada detalle requiere producto, cantidad y precio válidos.')
+
+  const primerId = Math.max(0, ...detallesCompra.value.map(item => item.ordencompradetalle_id)) + 1
+  const nuevos = items.map((item, index) => ({
+    ...item,
+    ordencompra_id,
+    ordencompradetalle_id: primerId + index,
+    subtotal: Math.round(item.cantidad * item.preciounitario * 100) / 100
+  }))
+  const total = Math.round(nuevos.reduce((suma, item) => suma + item.subtotal, 0) * 100) / 100
+  if (total !== cabecera.total) throw new Error('El total de los detalles no coincide con la cabecera.')
+  detallesCompra.value.push(...nuevos)
+  return nuevos.map(item => ({ ...item }))
+}
 
 type OrdenCompraListado = Omit<OrdenComercial, 'estado_nombre'> & {
   solicitante: string
@@ -364,7 +458,7 @@ onMounted(verOrdenes)
         </table>
       </div>
     </div>
-    <p class="text-muted small mt-3">Modo de demostración: los datos se conservan durante esta sesión y se reinician al recargar la página.</p>
+    <p class="text-muted small mt-3">Modo de demostración: los cambios se reinician al salir de esta vista o recargar la página.</p>
 
     <ModalNuevaOrdenCompra
       :mostrar="mostrarNuevaOrden"
