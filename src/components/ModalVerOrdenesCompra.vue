@@ -152,7 +152,7 @@ function mantenerFoco(event: KeyboardEvent) {
                       <div v-else class="d-flex flex-wrap align-items-center gap-2">
                         <span class="badge me-auto" :class="seleccionada.estado === 'Aprobada' ? 'bg-success' : seleccionada.estado === 'Cancelada' ? 'bg-danger' : 'bg-warning text-dark'">{{ seleccionada.estado }}</span>
                         <button v-if="seleccionada.estado === 'Pendiente'" type="button" class="btn btn-sm btn-outline-success" :disabled="!cambiosHabilitados || actualizando || !detallesSeleccionados.length" @click="cambiarEstado('Aprobada')">Aprobar</button>
-                        <button v-if="seleccionada.estado === 'Aprobada'" type="button" class="btn btn-sm btn-outline-danger" :disabled="!cambiosHabilitados || actualizando" title="Volver la orden a pendiente" @click="cambiarEstado('Pendiente')">Desaprobar</button>
+                        <button v-if="seleccionada.estado === 'Pendiente'" type="button" class="btn btn-sm btn-outline-danger" :disabled="!cambiosHabilitados || actualizando" @click="cambiarEstado('Cancelada')">Cancelar</button>
                         <button type="button" class="btn btn-sm btn-outline-coralon" :disabled="!cambiosHabilitados || actualizando" @click="nuevoEstado = seleccionada.estado; editandoEstado = true">Editar estado</button>
                       </div>
                     </div>
