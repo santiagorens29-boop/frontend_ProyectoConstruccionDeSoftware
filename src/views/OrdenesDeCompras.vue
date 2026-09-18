@@ -16,9 +16,7 @@ import {
 } from '../types/compra'
 import type { OrdenComercial, FacturaCabecera } from '../types/finanzas'
 
-
 // Simulación en memoria de las operaciones de órdenes de compra.
-// Reemplazar sus implementaciones por llamadas a api.ts al definir el backend.
 const cabecerasCompra = ref<OrdenCompraCabecera[]>(CABECERAS_COMPRA_MOCK.map(item => ({ ...item })))
 const detallesCompra = ref<OrdenCompraDetalle[]>(DETALLES_COMPRA_MOCK.map(item => ({ ...item })))
 const facturasCompra = ref<FacturaCabecera[]>(FACTURAS_COMPRA_MOCK.map(item => ({ ...item })))
@@ -35,7 +33,6 @@ async function abrirConsultaOrdenes() {
   cargando.value = true
   errorConsulta.value = ''
   try {
-    // GET simulados de FacturaCabecera y OrdenCompraDetalle; la relación es ordencompra_id.
     errorAprobacion.value = ''
     mensaje.value = ''
     const [facturas, detalles] = await Promise.all([getFacturaCabecerasCompra(), getOrdenCompraDetalles()])
@@ -55,22 +52,6 @@ async function getOrdenCompraCabeceras(): Promise<OrdenCompraCabecera[]> {
 
 async function getOrdenCompraDetalles(): Promise<OrdenCompraDetalle[]> {
   return detallesCompra.value.map(item => ({ ...item }))
-}
-
-async function actualizarEstadoOrdenCompra(
-  ordencompra_id: number,
-  estado: OrdenCompraCabecera['estado']
-): Promise<OrdenCompraCabecera> {
-  const cabecera = cabecerasCompra.value.find(item => item.ordencompra_id === ordencompra_id)
-  if (!cabecera) throw new Error('No existe la orden de compra.')
-  if (!['Pendiente', 'Aprobada', 'Cancelada'].includes(estado)) {
-    throw new Error('El estado de la orden no es válido.')
-  }
-  if (estado === 'Aprobada' && !detallesCompra.value.some(item => item.ordencompra_id === ordencompra_id)) {
-    throw new Error('No se puede aprobar una orden sin productos registrados.')
-  }
-  cabecera.estado = estado
-  return { ...cabecera }
 }
 
 async function aprobarOrdenCompra(ordencompra_id: number): Promise<OrdenCompraCabecera> {
@@ -109,7 +90,6 @@ async function postOrdenCompraCabecera(datos: NuevaOrdenCompraCabecera): Promise
   return { ...cabecera }
 }
 
-// El POST de detalle recibe todos los ítems de la cabecera en una sola operación.
 async function postOrdenCompraDetalle(
   ordencompra_id: number,
   items: NuevoOrdenCompraDetalle[]
@@ -155,12 +135,11 @@ const errorGuardado = ref('')
 const aprobandoId = ref<number | null>(null)
 const errorAprobacion = ref('')
 const cancelandoId = ref<number | null>(null)
-const editandoEstadoId = ref<number | null>(null)
-const estadoEditado = ref<OrdenCompraCabecera['estado']>('Pendiente')
 const guardandoEstado = ref(false)
 const cambiosEstadoHabilitados = ref(false)
+
 const accionesBloqueadas = computed(() =>
-  cargando.value || guardando.value || guardandoEstado.value || aprobandoId.value !== null || cancelandoId.value !== null || editandoEstadoId.value !== null
+  cargando.value || guardando.value || guardandoEstado.value || aprobandoId.value !== null || cancelandoId.value !== null
 )
 const moneda = (valor: number) => valor.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })
 const filtroBusqueda = ref('')
@@ -181,7 +160,6 @@ async function verOrdenes() {
   cargando.value = true
   errorConsulta.value = ''
   try {
-    // Dos GET simulados: cabeceras y detalles, unidos por ordencompra_id.
     const [cabeceras, detalles] = await Promise.all([
       getOrdenCompraCabeceras(),
       getOrdenCompraDetalles()
@@ -216,7 +194,6 @@ async function verOrdenes() {
 }
 
 function abrirModalCrear() {
-  // Si falló el detalle, se conserva el formulario y el ID para reintentar sin duplicar la cabecera.
   mensaje.value = ''
   if (cabeceraCreadaId.value === null) errorGuardado.value = ''
   mostrarNuevaOrden.value = true
@@ -288,43 +265,13 @@ async function cancelarOrden(orden: OrdenCompraListado) {
   }
 }
 
-function editarEstado(orden: OrdenCompraListado) {
-  if (accionesBloqueadas.value || !cambiosEstadoHabilitados.value) return
-  editandoEstadoId.value = orden.orden_id
-  estadoEditado.value = orden.estado_nombre
-  errorAprobacion.value = ''
-  mensaje.value = ''
-}
-
-function descartarEstado() {
-  if (guardandoEstado.value) return
-  editandoEstadoId.value = null
-  errorAprobacion.value = ''
-}
-
-async function guardarEstado(orden: OrdenCompraListado) {
-  if (!cambiosEstadoHabilitados.value || guardandoEstado.value || editandoEstadoId.value !== orden.orden_id) return
-  guardandoEstado.value = true
-  errorAprobacion.value = ''
-  try {
-    const cabecera = await actualizarEstadoOrdenCompra(orden.orden_id, estadoEditado.value)
-    orden.estado_nombre = cabecera.estado
-    mensaje.value = `Orden #${orden.orden_id}: estado actualizado a ${cabecera.estado.toLowerCase()}.`
-    editandoEstadoId.value = null
-  } catch (error) {
-    errorAprobacion.value = error instanceof Error ? error.message : 'No se pudo actualizar el estado.'
-  } finally {
-    guardandoEstado.value = false
-  }
-}
-
 async function cambiarEstadoDesdeConsulta(ordenId: number, estado: OrdenCompraCabecera['estado']) {
   if (!mostrarConsultaOrdenes.value || !cambiosEstadoHabilitados.value || accionesBloqueadas.value) return
   guardandoEstado.value = true
   errorAprobacion.value = ''
   mensaje.value = ''
   try {
-    const cabecera = await actualizarEstadoOrdenCompra(ordenId, estado)
+    const cabecera = estado === 'Aprobada' ? await aprobarOrdenCompra(ordenId) : await cancelarOrdenCompra(ordenId)
     const orden = ordenes.value.find(item => item.orden_id === ordenId)
     if (orden) orden.estado_nombre = cabecera.estado
     mensaje.value = `Orden #${ordenId}: estado actualizado a ${cabecera.estado.toLowerCase()}.`
@@ -382,6 +329,7 @@ onMounted(verOrdenes)
     <div v-if="mensaje" class="alert alert-success" role="status">{{ mensaje }}</div>
     <div v-if="errorConsulta" class="alert alert-danger" role="alert">{{ errorConsulta }}</div>
     <div v-if="errorAprobacion" class="alert alert-danger" role="alert">{{ errorAprobacion }}</div>
+    
     <div class="card shadow-sm border-0 mb-4 search-card">
       <div class="card-body p-3">
         <div class="row">
@@ -394,7 +342,6 @@ onMounted(verOrdenes)
               </span>
               <input
                 v-model="filtroBusqueda"
-                :disabled="editandoEstadoId !== null"
                 type="text"
                 class="form-control border-start-0 custom-search ps-2"
                 placeholder="Buscar por Número, Solicitante o Fecha..."
@@ -405,6 +352,7 @@ onMounted(verOrdenes)
         </div>
       </div>
     </div>
+
     <div class="card shadow-sm border-0 overflow-hidden" :aria-busy="cargando">
       <div class="table-responsive">
         <table class="table table-hover align-middle mb-0" aria-label="Órdenes de compra registradas">
@@ -436,28 +384,13 @@ onMounted(verOrdenes)
               </td>
               <td class="text-muted text-nowrap">{{ orden.fecha }}</td>
               <td>
-                <select
-                  v-if="editandoEstadoId === orden.orden_id"
-                  v-model="estadoEditado"
-                  class="form-select form-select-sm"
-                  :aria-label="`Estado de la orden ${orden.orden_id}`"
-                  :disabled="guardandoEstado"
-                >
-                  <option value="Pendiente">Pendiente</option>
-                  <option value="Aprobada" :disabled="orden.detalles.length === 0">Aprobada</option>
-                  <option value="Cancelada">Cancelada</option>
-                </select>
-                <span v-else class="badge" :class="orden.estado_nombre === 'Cancelada' ? 'bg-danger' : orden.estado_nombre === 'Aprobada' ? 'bg-success' : 'bg-warning text-dark'">{{ orden.estado_nombre }}</span>
+                <span class="badge" :class="orden.estado_nombre === 'Cancelada' ? 'bg-danger' : orden.estado_nombre === 'Aprobada' ? 'bg-success' : 'bg-warning text-dark'">
+                  {{ orden.estado_nombre }}
+                </span>
               </td>
               <td class="text-end fw-bold text-nowrap">{{ moneda(orden.total) }}</td>
               <td class="pe-3 text-end">
-                <div v-if="editandoEstadoId === orden.orden_id" class="d-flex justify-content-end gap-2">
-                  <button type="button" class="btn btn-sm btn-coralon text-nowrap" :disabled="guardandoEstado || estadoEditado === orden.estado_nombre" @click="guardarEstado(orden)">
-                    {{ guardandoEstado ? 'Guardando…' : 'Guardar estado' }}
-                  </button>
-                  <button type="button" class="btn btn-sm btn-outline-secondary" :disabled="guardandoEstado" @click="descartarEstado">Descartar</button>
-                </div>
-                <div v-else class="d-flex flex-wrap justify-content-end gap-2">
+                <div class="d-flex flex-wrap justify-content-end gap-2">
                   <button
                     v-if="orden.estado_nombre === 'Pendiente'"
                     type="button"
@@ -485,13 +418,9 @@ onMounted(verOrdenes)
                     </svg>
                     <span>{{ cancelandoId === orden.orden_id ? 'Cancelando…' : 'Cancelar' }}</span>
                   </button>
-                  <button
-                    type="button"
-                    class="btn btn-sm btn-outline-coralon text-nowrap"
-                    :disabled="accionesBloqueadas || !cambiosEstadoHabilitados"
-                    :aria-label="`Editar estado de la orden ${orden.orden_id}`"
-                    @click="editarEstado(orden)"
-                  >Editar estado</button>
+                  <span v-else class="text-muted small align-self-center fst-italic">
+                    Estado definitivo
+                  </span>
                 </div>
               </td>
             </tr>
