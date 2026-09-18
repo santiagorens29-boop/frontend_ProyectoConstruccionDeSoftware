@@ -259,3 +259,8 @@ export const ORDENES_VENTA_PENDIENTES: OrdenComercial[] = [
     ]
   }
 ]
+export const PERIODOS_MOCK: Periodo[] = [
+  { periodo_id: 1, anio: 2026, mes: 7 },
+  { periodo_id: 2, anio: 2026, mes: 8 },
+  { periodo_id: 3, anio: 2026, mes: 9 }
+]
