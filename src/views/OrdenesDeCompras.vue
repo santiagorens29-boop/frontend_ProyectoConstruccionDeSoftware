@@ -1,24 +1,53 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import ModalNuevaOrdenCompra from '../components/ModalNuevaOrdenCompra.vue'
+import ModalVerOrdenesCompra from '../components/ModalVerOrdenesCompra.vue'
 import { PROVEEDORES_MOCK } from '../types/proveedor'
 import { PRODUCTOS_MOCK } from '../types/producto'
 import {
   CABECERAS_COMPRA_MOCK,
   DETALLES_COMPRA_MOCK,
+  FACTURAS_COMPRA_MOCK,
   type NuevaOrdenCompra,
   type NuevaOrdenCompraCabecera,
   type NuevoOrdenCompraDetalle,
   type OrdenCompraCabecera,
   type OrdenCompraDetalle
 } from '../types/compra'
-import type { OrdenComercial } from '../types/finanzas'
+import type { OrdenComercial, FacturaCabecera } from '../types/finanzas'
 
 
 // Simulación en memoria de las operaciones de órdenes de compra.
 // Reemplazar sus implementaciones por llamadas a api.ts al definir el backend.
 const cabecerasCompra = ref<OrdenCompraCabecera[]>(CABECERAS_COMPRA_MOCK.map(item => ({ ...item })))
 const detallesCompra = ref<OrdenCompraDetalle[]>(DETALLES_COMPRA_MOCK.map(item => ({ ...item })))
+const facturasCompra = ref<FacturaCabecera[]>(FACTURAS_COMPRA_MOCK.map(item => ({ ...item })))
+const mostrarConsultaOrdenes = ref(false)
+const facturasConsultadas = ref<FacturaCabecera[]>([])
+const detallesConsultados = ref<OrdenCompraDetalle[]>([])
+
+async function getFacturaCabecerasCompra(): Promise<FacturaCabecera[]> {
+  return facturasCompra.value.filter(item => item.ordencompra_id !== null).map(item => ({ ...item }))
+}
+
+async function abrirConsultaOrdenes() {
+  if (accionesBloqueadas.value) return
+  cargando.value = true
+  errorConsulta.value = ''
+  try {
+    // GET simulados de FacturaCabecera y OrdenCompraDetalle; la relación es ordencompra_id.
+    errorAprobacion.value = ''
+    mensaje.value = ''
+    const [facturas, detalles] = await Promise.all([getFacturaCabecerasCompra(), getOrdenCompraDetalles()])
+    facturasConsultadas.value = facturas
+    detallesConsultados.value = detalles
+    mostrarConsultaOrdenes.value = true
+  } catch (error) {
+    errorConsulta.value = error instanceof Error ? error.message : 'No se pudieron consultar las órdenes.'
+  } finally {
+    cargando.value = false
+  }
+}
 
 async function getOrdenCompraCabeceras(): Promise<OrdenCompraCabecera[]> {
   return cabecerasCompra.value.map(item => ({ ...item }))
@@ -131,7 +160,7 @@ const estadoEditado = ref<OrdenCompraCabecera['estado']>('Pendiente')
 const guardandoEstado = ref(false)
 const cambiosEstadoHabilitados = ref(false)
 const accionesBloqueadas = computed(() =>
-  cargando.value || guardando.value || aprobandoId.value !== null || cancelandoId.value !== null || editandoEstadoId.value !== null
+  cargando.value || guardando.value || guardandoEstado.value || aprobandoId.value !== null || cancelandoId.value !== null || editandoEstadoId.value !== null
 )
 const moneda = (valor: number) => valor.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })
 const filtroBusqueda = ref('')
@@ -289,6 +318,23 @@ async function guardarEstado(orden: OrdenCompraListado) {
   }
 }
 
+async function cambiarEstadoDesdeConsulta(ordenId: number, estado: OrdenCompraCabecera['estado']) {
+  if (!mostrarConsultaOrdenes.value || !cambiosEstadoHabilitados.value || accionesBloqueadas.value) return
+  guardandoEstado.value = true
+  errorAprobacion.value = ''
+  mensaje.value = ''
+  try {
+    const cabecera = await actualizarEstadoOrdenCompra(ordenId, estado)
+    const orden = ordenes.value.find(item => item.orden_id === ordenId)
+    if (orden) orden.estado_nombre = cabecera.estado
+    mensaje.value = `Orden #${ordenId}: estado actualizado a ${cabecera.estado.toLowerCase()}.`
+  } catch (error) {
+    errorAprobacion.value = error instanceof Error ? error.message : 'No se pudo actualizar el estado.'
+  } finally {
+    guardandoEstado.value = false
+  }
+}
+
 onMounted(verOrdenes)
 </script>
 
@@ -311,7 +357,7 @@ onMounted(verOrdenes)
           type="button"
           class="btn btn-outline-coralon d-flex align-items-center gap-2 px-3 fw-semibold"
           :disabled="accionesBloqueadas"
-          @click="verOrdenes"
+          @click="abrirConsultaOrdenes"
         >
           <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true">
             <path d="M10.5 8a2.5 2.5 0 1 1-5 0 2.5 2.5 0 0 1 5 0" />
@@ -460,6 +506,19 @@ onMounted(verOrdenes)
     </div>
     <p class="text-muted small mt-3">Modo de demostración: los cambios se reinician al salir de esta vista o recargar la página.</p>
 
+    <ModalVerOrdenesCompra
+      :mostrar="mostrarConsultaOrdenes"
+      :ordenes="cabecerasCompra"
+      :facturas="facturasConsultadas"
+      :detalles="detallesConsultados"
+      :cambios-habilitados="cambiosEstadoHabilitados"
+      :actualizando="guardandoEstado"
+      :error="errorAprobacion"
+      :mensaje="mensaje"
+      @alternar-cambios="alternarCambiosEstado"
+      @cambiar-estado="cambiarEstadoDesdeConsulta"
+      @cerrar="mostrarConsultaOrdenes = false"
+    />
     <ModalNuevaOrdenCompra
       :mostrar="mostrarNuevaOrden"
       :guardando="guardando"
