@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import Navbar from './components/Navbar.vue'
-import SideBar from './components/SideBar.vue'
+import SideBar, { type AccionSidebar } from './components/SideBar.vue'
 import ProveedoresView from './views/ProveedoresView.vue'
 import OrdenesDeCompras from './views/OrdenesDeCompras.vue'
 import ProductosView from './views/ProductosView.vue'
@@ -22,7 +22,11 @@ function cambiarModulo(nuevoModulo: string) {
 }
 
 // Configuración dinámica del Sidebar según el módulo activo
-const accionesSidebar = computed(() => {
+const accionesSidebar = computed<{
+  accion1: AccionSidebar
+  accion2: AccionSidebar
+  accion3?: AccionSidebar
+}>(() => {
   if (moduloActivo.value === 'finanzas') {
     return {
       accion1: {
@@ -49,7 +53,8 @@ const accionesSidebar = computed(() => {
       accion2: {
         titulo: 'Cargar Stock',
         descripcion: 'Ingreso manual de mercadería a inventario'
-      }
+      },
+      accion3: undefined
     }
   }
 
@@ -62,7 +67,8 @@ const accionesSidebar = computed(() => {
       accion2: {
         titulo: 'Órdenes de Compra',
         descripcion: 'Consultar y registrar compras a proveedores'
-      }
+      },
+      accion3: undefined
     }
   }
 
@@ -75,7 +81,8 @@ const accionesSidebar = computed(() => {
       accion2: {
         titulo: 'Registrar venta / Nueva factura',
         descripcion: 'Buscar cliente por CUIL y facturar'
-      }
+      },
+      accion3: undefined
     }
   }
 
@@ -87,7 +94,8 @@ const accionesSidebar = computed(() => {
     accion2: {
       titulo: 'Acción Secundaria',
       descripcion: 'Detalle de la acción secundaria'
-    }
+    },
+    accion3: undefined
   }
 })
 </script>
@@ -113,7 +121,7 @@ const accionesSidebar = computed(() => {
         <template v-if="moduloActivo === 'finanzas'">
           <FinanzasFacturacionView v-if="subVistaActiva === 'opcion1'" />
           <FinanzasCierreView v-else-if="subVistaActiva === 'opcion2'" />
-          <FinanzasPeriodosView v-else />
+          <FinanzasPeriodosView v-else-if="subVistaActiva === 'opcion3'" />
         </template>
 
         <!-- Módulo Sistemas Administrativos -->
@@ -127,7 +135,7 @@ const accionesSidebar = computed(() => {
         <!-- Módulo Proveedores y Compra -->
         <template v-else-if="moduloActivo === 'proveedores'">
           <ProveedoresView v-if="subVistaActiva === 'opcion1'" />
-          <OrdenesDeCompras v-else />
+          <OrdenesDeCompras v-else-if="subVistaActiva === 'opcion2'" />
         </template>
 
         <!-- Módulo Ventas / Clientes -->

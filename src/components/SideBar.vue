@@ -8,7 +8,8 @@ withDefaults(
   defineProps<{
     accion1?: AccionSidebar
     accion2?: AccionSidebar
-    subVistaActiva?: 'opcion1' | 'opcion2'
+    accion3?: AccionSidebar
+    subVistaActiva?: 'opcion1' | 'opcion2' | 'opcion3'
   }>(),
   {
     accion1: () => ({
@@ -19,12 +20,14 @@ withDefaults(
       titulo: 'Cierre y Libro Diario',
       descripcion: 'Cierre mensual y asientos contables',
     }),
+    // IMPORTANTE: accion3 queda undefined por defecto para que NO aparezca en otros módulos
+    accion3: undefined,
     subVistaActiva: 'opcion1'
   }
 )
 
 const emit = defineEmits<{
-  (e: 'seleccionar-accion', opcion: 'opcion1' | 'opcion2'): void
+  (e: 'seleccionar-accion', opcion: 'opcion1' | 'opcion2' | 'opcion3'): void
 }>()
 </script>
 
@@ -35,6 +38,7 @@ const emit = defineEmits<{
     <div class="d-flex flex-column gap-2">
       <!-- Tarjeta 1 -->
       <a 
+        v-if="accion1"
         href="#" 
         class="accion-card d-flex align-items-start gap-2 p-3 text-decoration-none rounded"
         :class="{ 'tarjeta-activa': subVistaActiva === 'opcion1' }"
@@ -51,6 +55,7 @@ const emit = defineEmits<{
 
       <!-- Tarjeta 2 -->
       <a 
+        v-if="accion2"
         href="#" 
         class="accion-card d-flex align-items-start gap-2 p-3 text-decoration-none rounded"
         :class="{ 'tarjeta-activa': subVistaActiva === 'opcion2' }"
@@ -62,6 +67,24 @@ const emit = defineEmits<{
         <div>
           <div class="accion-titulo fw-bold">{{ accion2.titulo }}</div>
           <div class="accion-descripcion">{{ accion2.descripcion }}</div>
+        </div>
+      </a>
+
+      <!-- Tarjeta 3 (Solo se renderiza si el módulo la provee explícitamente) -->
+      <a 
+        v-if="accion3"
+        href="#" 
+        class="accion-card d-flex align-items-start gap-2 p-3 text-decoration-none rounded"
+        :class="{ 'tarjeta-activa': subVistaActiva === 'opcion3' }"
+        @click.prevent="emit('seleccionar-accion', 'opcion3')"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="currentColor" viewBox="0 0 16 16" class="icono mt-1">
+          <path d="M14 0H2a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V2a2 2 0 0 0-2-2M1 3.857C1 3.384 1.448 3 2 3h12c.552 0 1 .384 1 .857v10.286c0 .473-.448.857-1 .857H2c-.552 0-1-.384-1-.857z"/>
+          <path d="M6.5 7a1 1 0 1 0 0-2 1 1 0 0 0 0 2m3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2m-3 3a1 1 0 1 0 0-2 1 1 0 0 0 0 2m3 0a1 1 0 1 0 0-2 1 1 0 0 0 0 2"/>
+        </svg>
+        <div>
+          <div class="accion-titulo fw-bold">{{ accion3.titulo }}</div>
+          <div class="accion-descripcion">{{ accion3.descripcion }}</div>
         </div>
       </a>
     </div>
