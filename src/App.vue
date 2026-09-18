@@ -3,6 +3,7 @@ import { ref, computed } from 'vue'
 import Navbar from './components/Navbar.vue'
 import SideBar from './components/SideBar.vue'
 import ProveedoresView from './views/ProveedoresView.vue'
+import OrdenesDeCompras from './views/OrdenesDeCompras.vue'
 import ProductosView from './views/ProductosView.vue'
 import ClientesView from './views/ClientesView.vue'
 import FinanzasFacturacionView from './views/FinanzasFacturacionView.vue'
@@ -119,9 +120,7 @@ const accionesSidebar = computed(() => {
         <!-- Módulo Proveedores y Compra -->
         <template v-else-if="moduloActivo === 'proveedores'">
           <ProveedoresView v-if="subVistaActiva === 'opcion1'" />
-          <div v-else class="text-center py-5">
-            <h4 class="text-muted">Órdenes de Compra en Construcción</h4>
-          </div>
+          <OrdenesDeCompras v-else />
         </template>
 
         <!-- Módulo Ventas / Clientes -->
