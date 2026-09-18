@@ -8,12 +8,13 @@ import ProductosView from './views/ProductosView.vue'
 import ClientesView from './views/ClientesView.vue'
 import FinanzasFacturacionView from './views/FinanzasFacturacionView.vue'
 import FinanzasCierreView from './views/FinanzasCierreView.vue'
+import FinanzasPeriodosView from './views/FinanzasPeriodosView.vue'
 
 // Estado del módulo general activo (coincide con los botones del Navbar)
 const moduloActivo = ref('finanzas')
 
 // Estado de la sub-acción activa dentro del módulo seleccionado (Sidebar)
-const subVistaActiva = ref<'opcion1' | 'opcion2'>('opcion1')
+const subVistaActiva = ref<'opcion1' | 'opcion2' | 'opcion3'>('opcion1')
 
 function cambiarModulo(nuevoModulo: string) {
   moduloActivo.value = nuevoModulo
@@ -31,6 +32,10 @@ const accionesSidebar = computed(() => {
       accion2: {
         titulo: 'Cierre y Libro Diario',
         descripcion: 'Cierre mensual y asientos contables'
+      },
+      accion3: {
+        titulo: 'Crear Período',
+        descripcion: 'Gestión de períodos contables'
       }
     }
   }
@@ -98,6 +103,7 @@ const accionesSidebar = computed(() => {
       <SideBar
         :accion1="accionesSidebar.accion1"
         :accion2="accionesSidebar.accion2"
+        :accion3="accionesSidebar.accion3"
         :sub-vista-activa="subVistaActiva"
         @seleccionar-accion="(opcion) => subVistaActiva = opcion"
       />
@@ -106,7 +112,8 @@ const accionesSidebar = computed(() => {
         <!-- Módulo Finanzas -->
         <template v-if="moduloActivo === 'finanzas'">
           <FinanzasFacturacionView v-if="subVistaActiva === 'opcion1'" />
-          <FinanzasCierreView v-else />
+          <FinanzasCierreView v-else-if="subVistaActiva === 'opcion2'" />
+          <FinanzasPeriodosView v-else />
         </template>
 
         <!-- Módulo Sistemas Administrativos -->
