@@ -12,7 +12,21 @@ export interface Producto {
 // Tipo para creación de producto (omite ID generado por DB)
 export type NuevoProducto = Omit<Producto, 'producto_id'>
 
-// Datos simulados (Mock) para el corralón
+// Contrato para Movimiento de Inventario basado en el DER
+export interface MovimientoInventario {
+  movimientoinventario_id: number
+  producto_id: number
+  usuario_id: number
+  tipo: 'Ingreso' | 'Egreso' | 'Ajuste'
+  cantidad: number
+  fecha: string
+  observacion: string
+}
+
+// Tipo para registrar un nuevo movimiento de reposición/carga de stock
+export type NuevoMovimientoInventario = Omit<MovimientoInventario, 'movimientoinventario_id'>
+
+// Datos simulados (Mock) para productos del corralón
 export const PRODUCTOS_MOCK: Producto[] = [
   {
     producto_id: 1,
@@ -49,5 +63,27 @@ export const PRODUCTOS_MOCK: Producto[] = [
     rubro_id: 104, // Pinturas y Acabados
     stockactual: 12,
     stockminreposicion: 5
+  }
+]
+
+// Historial inicial de movimientos de stock
+export const MOVIMIENTOS_INVENTARIO_MOCK: MovimientoInventario[] = [
+  {
+    movimientoinventario_id: 1,
+    producto_id: 1,
+    usuario_id: 1,
+    tipo: 'Ingreso',
+    cantidad: 50,
+    fecha: '2026-09-10',
+    observacion: 'Carga inicial de stock'
+  },
+  {
+    movimientoinventario_id: 2,
+    producto_id: 3,
+    usuario_id: 1,
+    tipo: 'Ingreso',
+    cantidad: 400,
+    fecha: '2026-09-12',
+    observacion: 'Ingreso de mercadería por recepción'
   }
 ]
