@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import type { Proveedor, NuevoProveedor } from '../types/proveedor'
+import { PRODUCTOS_MOCK } from '../types/producto'
 
 interface Props {
   mostrar: boolean
@@ -14,13 +15,17 @@ const emit = defineEmits<{
   (e: 'guardar', proveedor: Proveedor | NuevoProveedor): void
 }>()
 
+const productosDisponibles = PRODUCTOS_MOCK
+
 const formulario = ref<NuevoProveedor & { proveedor_id?: number }>({
   nombre: '',
   apellido: '',
   cuit: '',
   email: '',
   telefono: '',
-  direccion: ''
+  direccion: '',
+  producto_id: 0,
+  producto_nombre: ''
 })
 
 watch(
@@ -35,7 +40,9 @@ watch(
         cuit: '',
         email: '',
         telefono: '',
-        direccion: ''
+        direccion: '',
+        producto_id: productosDisponibles[0]?.producto_id || 0,
+        producto_nombre: productosDisponibles[0]?.nombre || ''
       }
     }
   },
@@ -47,7 +54,13 @@ function cerrarModal() {
 }
 
 function guardarProveedor() {
-  emit('guardar', { ...formulario.value })
+  const prodSeleccionado = productosDisponibles.find(p => p.producto_id === Number(formulario.value.producto_id))
+  
+  emit('guardar', {
+    ...formulario.value,
+    producto_id: Number(formulario.value.producto_id),
+    producto_nombre: prodSeleccionado ? prodSeleccionado.nombre : ''
+  })
 }
 </script>
 
@@ -154,6 +167,25 @@ function guardarProveedor() {
                     placeholder="Calle 123, Localidad"
                     required
                   />
+                </div>
+
+                <!-- Producto asignado (Relación 1 a 1 sin tabla intermedia) -->
+                <div class="col-md-12">
+                  <label class="form-label fw-semibold text-dark">Producto Suministrado *</label>
+                  <select
+                    v-model.number="formulario.producto_id"
+                    class="form-select custom-input"
+                    required
+                  >
+                    <option value="0" disabled>Seleccione el artículo que provee...</option>
+                    <option
+                      v-for="prod in productosDisponibles"
+                      :key="prod.producto_id"
+                      :value="prod.producto_id"
+                    >
+                      #{{ prod.producto_id }} - {{ prod.nombre }}
+                    </option>
+                  </select>
                 </div>
               </div>
             </div>
