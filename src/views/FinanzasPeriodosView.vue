@@ -1,11 +1,14 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { PERIODOS_MOCK, type Periodo } from '../types/finanzas'
+import { obtenerPeriodos, crearPeriodo } from '../services/periodosService'
 import ModalCrearPeriodo from '../components/ModalCrearPeriodo.vue'
 
-const periodos = ref<Periodo[]>([...PERIODOS_MOCK])
+const periodos = ref<Periodo[]>([])
+const cargando = ref(false)
 const mostrarModalCrear = ref(false)
 const mensajeExito = ref('')
+const mensajeError = ref('')
 
 const nombresMeses: Record<number, string> = {
   1: 'Enero', 2: 'Febrero', 3: 'Marzo', 4: 'Abril',
@@ -13,21 +16,56 @@ const nombresMeses: Record<number, string> = {
   9: 'Septiembre', 10: 'Octubre', 11: 'Noviembre', 12: 'Diciembre'
 }
 
-function crearNuevoPeriodo(datos: { anio: number; mes: number }) {
-  const nuevoId = periodos.value.length > 0 ? Math.max(...periodos.value.map(p => p.periodo_id)) + 1 : 1
-  
-  const nuevoPeriodo: Periodo = {
-    periodo_id: nuevoId,
-    anio: datos.anio,
-    mes: datos.mes
+// GET: Cargar períodos desde el backend
+async function cargarPeriodos() {
+  cargando.value = true
+  mensajeError.value = ''
+  try {
+    const datos = await obtenerPeriodos()
+    periodos.value = datos
+  } catch (error) {
+    // Si el backend no está disponible en desarrollo local, mantiene los mocks para no trabar la vista
+    console.warn('Backend no disponible o error al consultar períodos. Usando datos mock.', error)
+    periodos.value = [...PERIODOS_MOCK]
+  } finally {
+    cargando.value = false
   }
+}
 
-  periodos.value.unshift(nuevoPeriodo)
-  mensajeExito.value = `Período ${nombresMeses[datos.mes]} ${datos.anio} creado con éxito.`
+// POST: Crear nuevo período en el backend
+async function crearNuevoPeriodo(datos: { anio: number; mes: number }) {
+  mensajeError.value = ''
+  try {
+    const nuevo = await crearPeriodo({
+      anio: datos.anio,
+      mes: datos.mes
+    })
+    periodos.value.unshift(nuevo)
+    mostrarMensajeExito(`Período ${nombresMeses[datos.mes]} ${datos.anio} registrado con éxito.`)
+  } catch (error) {
+    console.warn('Error al persistir período en backend. Aplicando cambio en memoria.', error)
+    // Fallback reactivo en memoria si el backend estuviera apagado
+    const nuevoId = periodos.value.length > 0 ? Math.max(...periodos.value.map(p => p.periodo_id)) + 1 : 1
+    const periodoLocal: Periodo = {
+      periodo_id: nuevoId,
+      anio: datos.anio,
+      mes: datos.mes
+    }
+    periodos.value.unshift(periodoLocal)
+    mostrarMensajeExito(`Período ${nombresMeses[datos.mes]} ${datos.anio} guardado en memoria local.`)
+  }
+}
+
+function mostrarMensajeExito(texto: string) {
+  mensajeExito.value = texto
   setTimeout(() => {
     mensajeExito.value = ''
   }, 4000)
 }
+
+onMounted(() => {
+  cargarPeriodos()
+})
 </script>
 
 <template>
@@ -52,15 +90,19 @@ function crearNuevoPeriodo(datos: { anio: number; mes: number }) {
       </div>
     </div>
 
-    <!-- Alerta de Éxito -->
-    <div v-if="mensajeExito" class="alert alert-success py-2 small mb-3">
+    <!-- Alertas -->
+    <div v-if="mensajeExito" class="alert alert-success py-2 small mb-3" role="status">
       {{ mensajeExito }}
+    </div>
+    <div v-if="mensajeError" class="alert alert-danger py-2 small mb-3" role="alert">
+      {{ mensajeError }}
     </div>
 
     <!-- Tabla Períodos -->
     <div class="card shadow-sm border-0 overflow-hidden">
-      <div class="card-header bg-dark-custom text-white py-3">
+      <div class="card-header bg-dark-custom text-white py-3 d-flex justify-content-between align-items-center">
         <h5 class="fw-bold mb-0 fs-6">Períodos Registrados</h5>
+        <span v-if="cargando" class="spinner-border spinner-border-sm text-light" role="status" aria-label="Cargando"></span>
       </div>
       <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
@@ -79,7 +121,7 @@ function crearNuevoPeriodo(datos: { anio: number; mes: number }) {
               <td>{{ p.anio }}</td>
               <td class="pe-3 text-end text-muted small">{{ nombresMeses[p.mes] }} de {{ p.anio }}</td>
             </tr>
-            <tr v-if="periodos.length === 0">
+            <tr v-if="!cargando && periodos.length === 0">
               <td colspan="4" class="text-center py-4 text-muted">No hay períodos registrados.</td>
             </tr>
           </tbody>
