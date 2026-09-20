@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import { PROVEEDORES_MOCK, type Proveedor, type NuevoProveedor } from '../types/proveedor'
+import { PRODUCTOS_MOCK } from '../types/producto'
 import ModalProveedor from '../components/ModalProveedor.vue'
 
 const listaProveedores = ref<Proveedor[]>([...PROVEEDORES_MOCK])
@@ -18,7 +19,8 @@ const proveedoresFiltrados = computed(() => {
     p.nombre.toLowerCase().includes(busqueda) ||
     p.apellido.toLowerCase().includes(busqueda) ||
     p.cuit.includes(busqueda) ||
-    p.email.toLowerCase().includes(busqueda)
+    p.email.toLowerCase().includes(busqueda) ||
+    (p.producto_nombre && p.producto_nombre.toLowerCase().includes(busqueda))
   )
 })
 
@@ -47,20 +49,28 @@ function cerrarModal() {
 }
 
 function guardarProveedor(datos: Proveedor | NuevoProveedor) {
+  const prodEncontrado = PRODUCTOS_MOCK.find(p => p.producto_id === datos.producto_id)
+  const nombreProd = prodEncontrado ? prodEncontrado.nombre : (datos.producto_nombre || 'Sin asignar')
+
   if ('proveedor_id' in datos && datos.proveedor_id) {
     const index = listaProveedores.value.findIndex(p => p.proveedor_id === datos.proveedor_id)
     if (index !== -1) {
-      listaProveedores.value[index] = datos as Proveedor
+      const proveedorActualizado: Proveedor = {
+        ...(datos as Proveedor),
+        producto_nombre: nombreProd
+      }
+      listaProveedores.value[index] = proveedorActualizado
+      proveedorSeleccionado.value = proveedorActualizado
     }
-    proveedorSeleccionado.value = datos as Proveedor
   } else {
     const nuevoId = listaProveedores.value.length > 0 
       ? Math.max(...listaProveedores.value.map(p => p.proveedor_id)) + 1 
       : 1
 
     const nuevo: Proveedor = {
+      ...(datos as NuevoProveedor),
       proveedor_id: nuevoId,
-      ...datos
+      producto_nombre: nombreProd
     }
     listaProveedores.value.push(nuevo)
   }
@@ -118,7 +128,7 @@ function guardarProveedor(datos: Proveedor | NuevoProveedor) {
                 v-model="filtroBusqueda"
                 type="text"
                 class="form-control border-start-0 custom-search ps-2"
-                placeholder="Buscar por Nombre, CUIT o Email..."
+                placeholder="Buscar por Nombre, CUIT, Email o Producto..."
               />
             </div>
           </div>
@@ -136,6 +146,7 @@ function guardarProveedor(datos: Proveedor | NuevoProveedor) {
               <th scope="col" class="py-3">Nombre / Razón Social</th>
               <th scope="col" class="py-3">Apellido / Denominación</th>
               <th scope="col" class="py-3">CUIT</th>
+              <th scope="col" class="py-3">Producto Suministrado</th>
               <th scope="col" class="py-3">Teléfono</th>
               <th scope="col" class="py-3">Email</th>
               <th scope="col" class="py-3 pe-3">Dirección</th>
@@ -153,12 +164,17 @@ function guardarProveedor(datos: Proveedor | NuevoProveedor) {
               <td class="fw-semibold">{{ proveedor.nombre }}</td>
               <td>{{ proveedor.apellido }}</td>
               <td><span class="badge badge-cuit font-monospace">{{ proveedor.cuit }}</span></td>
+              <td>
+                <span class="badge bg-secondary-subtle text-dark border border-secondary-subtle px-2 py-1">
+                  #{{ proveedor.producto_id }} - {{ proveedor.producto_nombre || 'Producto Asignado' }}
+                </span>
+              </td>
               <td>{{ proveedor.telefono }}</td>
               <td>{{ proveedor.email }}</td>
               <td class="pe-3 text-secondary">{{ proveedor.direccion }}</td>
             </tr>
             <tr v-if="proveedoresFiltrados.length === 0">
-              <td colspan="7" class="text-center py-5 text-muted">
+              <td colspan="8" class="text-center py-5 text-muted">
                 No se encontraron proveedores que coincidan con la búsqueda.
               </td>
             </tr>
