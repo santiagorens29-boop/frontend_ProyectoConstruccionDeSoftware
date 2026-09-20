@@ -5,16 +5,17 @@ import SideBar, { type AccionSidebar } from './components/SideBar.vue'
 import ProveedoresView from './views/ProveedoresView.vue'
 import OrdenesDeCompras from './views/OrdenesDeCompras.vue'
 import ProductosView from './views/ProductosView.vue'
+import CargarStockView from './views/CargarStockView.vue'
 import ClientesView from './views/ClientesView.vue'
 import FinanzasFacturacionView from './views/FinanzasFacturacionView.vue'
 import FinanzasCierreView from './views/FinanzasCierreView.vue'
 import FinanzasPeriodosView from './views/FinanzasPeriodosView.vue'
 
 // Estado del módulo general activo (coincide con los botones del Navbar)
-const moduloActivo = ref('finanzas')
+const moduloActivo = ref('administrativos')
 
 // Estado de la sub-acción activa dentro del módulo seleccionado (Sidebar)
-const subVistaActiva = ref<'opcion1' | 'opcion2' | 'opcion3'>('opcion1')
+const subVistaActiva = ref<'opcion1' | 'opcion2' | 'opcion3'>('opcion2')
 
 function cambiarModulo(nuevoModulo: string) {
   moduloActivo.value = nuevoModulo
@@ -127,9 +128,7 @@ const accionesSidebar = computed<{
         <!-- Módulo Sistemas Administrativos -->
         <template v-else-if="moduloActivo === 'administrativos'">
           <ProductosView v-if="subVistaActiva === 'opcion1'" />
-          <div v-else class="text-center py-5">
-            <h4 class="text-muted">Cargar Stock en Construcción</h4>
-          </div>
+          <CargarStockView v-else />
         </template>
 
         <!-- Módulo Proveedores y Compra -->
