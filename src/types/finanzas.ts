@@ -4,6 +4,7 @@ export interface Periodo {
   anio: number
   mes: number
 }
+export type NuevoPeriodo = Omit<Periodo, 'periodo_id'>
 
 export type EstadoCierre = 'Abierto' | 'Cerrado'
 
