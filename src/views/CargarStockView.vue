@@ -28,14 +28,21 @@ const productosFiltrados = computed(() => {
   )
 })
 
-function abrirModalReponer(producto: Producto) {
-  productoSeleccionado.value = producto
+function seleccionarProducto(producto: Producto) {
+  if (productoSeleccionado.value?.producto_id === producto.producto_id) {
+    productoSeleccionado.value = null // Si vuelve a hacer click, deselecciona
+  } else {
+    productoSeleccionado.value = producto
+  }
+}
+
+function abrirModalReponer() {
+  if (!productoSeleccionado.value) return
   mostrarModalReponer.value = true
 }
 
 function cerrarModalReponer() {
   mostrarModalReponer.value = false
-  productoSeleccionado.value = null
 }
 
 function confirmarReposicion(datos: { producto_id: number; cantidad: number; observacion: string }) {
@@ -55,7 +62,7 @@ function confirmarReposicion(datos: { producto_id: number; cantidad: number; obs
   const nuevoMovimiento: MovimientoInventario = {
     movimientoinventario_id: nuevoMovimientoId,
     producto_id: prod.producto_id,
-    usuario_id: 1, // Usuario actual en sesión mock
+    usuario_id: 1,
     tipo: 'Ingreso',
     cantidad: datos.cantidad,
     fecha: hoy,
@@ -64,7 +71,11 @@ function confirmarReposicion(datos: { producto_id: number; cantidad: number; obs
 
   movimientos.value.unshift(nuevoMovimiento)
 
-  mensajeExito.value = `Se ingresaron ${datos.cantidad} un. de "${prod.nombre}". Stock actualizado: ${prod.stockactual} un.`
+  mensajeExito.value = `Se ingresaron ${datos.cantidad} un. a "${prod.nombre}". Stock final: ${prod.stockactual} un.`
+  
+  // Limpia la selección activa tras reponer
+  productoSeleccionado.value = null
+
   setTimeout(() => {
     mensajeExito.value = ''
   }, 4500)
@@ -73,11 +84,28 @@ function confirmarReposicion(datos: { producto_id: number; cantidad: number; obs
 
 <template>
   <div class="container-fluid py-2">
-    <!-- Encabezado de la vista -->
+    <!-- Encabezado con Botón General de Acción -->
     <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
       <div>
         <h3 class="fw-bold mb-0 text-dark">Carga y Reposición de Stock</h3>
-        <p class="text-muted small mb-0">Gestión de inventario físico y entrada manual de mercadería</p>
+        <p class="text-muted small mb-0">Seleccione un producto de la tabla para gestionar su reposición</p>
+      </div>
+      <div>
+        <!-- Botón único: deshabilitado si no hay producto seleccionado -->
+        <button
+          type="button"
+          class="btn btn-coralon d-flex align-items-center gap-2 px-3 fw-semibold shadow-sm"
+          :disabled="!productoSeleccionado"
+          @click="abrirModalReponer"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+            <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4"/>
+          </svg>
+          <span>Reponer Stock</span>
+          <span v-if="productoSeleccionado" class="badge bg-light text-dark ms-1">
+            #{{ productoSeleccionado.producto_id }}
+          </span>
+        </button>
       </div>
     </div>
 
@@ -86,14 +114,14 @@ function confirmarReposicion(datos: { producto_id: number; cantidad: number; obs
       {{ mensajeExito }}
     </div>
 
-    <!-- Buscador de productos (Bootstrap 5) -->
+    <!-- Barra de búsqueda -->
     <div class="card shadow-sm border-0 mb-4">
       <div class="card-body p-3">
         <div class="row">
           <div class="col-md-6">
             <div class="input-group">
               <span class="input-group-text bg-white border-end-0 text-muted pe-1">
-                <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16" aria-hidden="true">
+                <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
                   <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001q.044.06.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1 1 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0" />
                 </svg>
               </span>
@@ -102,7 +130,6 @@ function confirmarReposicion(datos: { producto_id: number; cantidad: number; obs
                 type="text"
                 class="form-control border-start-0 ps-2"
                 placeholder="Buscar por código o nombre del producto..."
-                aria-label="Buscar producto"
               />
             </div>
           </div>
@@ -110,29 +137,44 @@ function confirmarReposicion(datos: { producto_id: number; cantidad: number; obs
       </div>
     </div>
 
-    <!-- Tabla Principal de Stock -->
+    <!-- Tabla Principal de Stock con selección de fila -->
     <div class="card shadow-sm border-0 overflow-hidden">
-      <div class="card-header encabezado-custom text-white py-3">
+      <div class="card-header encabezado-custom text-white py-3 d-flex justify-content-between align-items-center">
         <h5 class="fw-bold mb-0 fs-6">Inventario de Mercadería</h5>
+        <span class="small text-white-50">Haga clic en una fila para seleccionarla</span>
       </div>
       <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
           <thead class="table-light">
             <tr>
-              <th scope="col" class="ps-3 py-2">Código</th>
+              <th scope="col" class="ps-3 py-2" style="width: 50px;">Sel.</th>
+              <th scope="col" class="py-2">Código</th>
               <th scope="col" class="py-2">Producto</th>
               <th scope="col" class="py-2 text-center">Stock Mínimo</th>
               <th scope="col" class="py-2 text-center">Stock Actual</th>
-              <th scope="col" class="py-2 text-center">Estado</th>
-              <th scope="col" class="pe-3 py-2 text-end">Acción</th>
+              <th scope="col" class="pe-3 py-2 text-end">Estado</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="producto in productosFiltrados" :key="producto.producto_id">
-              <td class="ps-3 font-monospace fw-bold text-muted">#{{ producto.producto_id }}</td>
+            <tr
+              v-for="producto in productosFiltrados"
+              :key="producto.producto_id"
+              class="fila-producto"
+              :class="{ 'fila-seleccionada': productoSeleccionado?.producto_id === producto.producto_id }"
+              @click="seleccionarProducto(producto)"
+            >
+              <td class="ps-3">
+                <input
+                  type="radio"
+                  class="form-check-input"
+                  :checked="productoSeleccionado?.producto_id === producto.producto_id"
+                  @click.stop="seleccionarProducto(producto)"
+                />
+              </td>
+              <td class="font-monospace fw-bold text-muted">#{{ producto.producto_id }}</td>
               <td>
                 <div class="fw-semibold text-dark">{{ producto.nombre }}</div>
-                <div class="text-muted small text-truncate" style="max-width: 320px;">
+                <div class="text-muted small text-truncate" style="max-width: 380px;">
                   {{ producto.descripcion }}
                 </div>
               </td>
@@ -140,11 +182,14 @@ function confirmarReposicion(datos: { producto_id: number; cantidad: number; obs
                 {{ producto.stockminreposicion }} un.
               </td>
               <td class="text-center">
-                <span class="fw-bold fs-6" :class="producto.stockactual <= producto.stockminreposicion ? 'text-danger' : 'text-dark'">
+                <span
+                  class="fw-bold fs-6"
+                  :class="producto.stockactual <= producto.stockminreposicion ? 'text-danger' : 'text-dark'"
+                >
                   {{ producto.stockactual }} un.
                 </span>
               </td>
-              <td class="text-center">
+              <td class="pe-3 text-end">
                 <span
                   v-if="producto.stockactual <= producto.stockminreposicion"
                   class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1"
@@ -158,22 +203,10 @@ function confirmarReposicion(datos: { producto_id: number; cantidad: number; obs
                   Stock Normal
                 </span>
               </td>
-              <td class="pe-3 text-end">
-                <button
-                  type="button"
-                  class="btn btn-sm btn-coralon fw-semibold d-inline-flex align-items-center gap-1"
-                  @click="abrirModalReponer(producto)"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16">
-                    <path d="M8 4a.5.5 0 0 1 .5.5v3h3a.5.5 0 0 1 0 1h-3v3a.5.5 0 0 1-1 0v-3h-3a.5.5 0 0 1 0-1h3v-3A.5.5 0 0 1 8 4"/>
-                  </svg>
-                  <span>Reponer Stock</span>
-                </button>
-              </td>
             </tr>
             <tr v-if="productosFiltrados.length === 0">
               <td colspan="6" class="text-center py-4 text-muted">
-                No se encontraron productos que coincidan con la búsqueda.
+                No se encontraron productos coincidentes.
               </td>
             </tr>
           </tbody>
@@ -181,7 +214,7 @@ function confirmarReposicion(datos: { producto_id: number; cantidad: number; obs
       </div>
     </div>
 
-    <!-- Modal de reposición de stock -->
+    <!-- Modal de reposición -->
     <ModalReponerStock
       :mostrar="mostrarModalReponer"
       :producto="productoSeleccionado"
@@ -204,9 +237,19 @@ function confirmarReposicion(datos: { producto_id: number; cantidad: number; obs
   transition: all 0.2s ease-in-out;
 }
 
-.btn-coralon:hover {
+.btn-coralon:hover:not(:disabled) {
   background-color: #ff7a45;
   border-color: #ff7a45;
   color: #ffffff;
+}
+
+.fila-producto {
+  cursor: pointer;
+  transition: background-color 0.15s ease-in-out;
+}
+
+.fila-seleccionada {
+  background-color: #fbeee8 !important;
+  border-left: 4px solid #b33e14;
 }
 </style>
