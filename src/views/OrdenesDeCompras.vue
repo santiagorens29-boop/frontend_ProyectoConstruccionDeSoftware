@@ -14,18 +14,17 @@ import {
   type OrdenCompraCabecera,
   type OrdenCompraDetalle
 } from '../types/compra'
-import type { OrdenComercial, FacturaCabecera } from '../types/finanzas'
+import type { FacturaCabecera } from '../types/finanzas'
 
 // Simulación en memoria de las operaciones de órdenes de compra.
 const cabecerasCompra = ref<OrdenCompraCabecera[]>(CABECERAS_COMPRA_MOCK.map(item => ({ ...item })))
 const detallesCompra = ref<OrdenCompraDetalle[]>(DETALLES_COMPRA_MOCK.map(item => ({ ...item })))
-const facturasCompra = ref<FacturaCabecera[]>(FACTURAS_COMPRA_MOCK.map(item => ({ ...item })))
 const mostrarConsultaOrdenes = ref(false)
 const facturasConsultadas = ref<FacturaCabecera[]>([])
 const detallesConsultados = ref<OrdenCompraDetalle[]>([])
 
 async function getFacturaCabecerasCompra(): Promise<FacturaCabecera[]> {
-  return facturasCompra.value.filter(item => item.ordencompra_id !== null).map(item => ({ ...item }))
+  return FACTURAS_COMPRA_MOCK.filter(item => item.ordencompra_id !== null).map(item => ({ ...item }))
 }
 
 async function abrirConsultaOrdenes() {
@@ -93,7 +92,7 @@ async function postOrdenCompraCabecera(datos: NuevaOrdenCompraCabecera): Promise
 async function postOrdenCompraDetalle(
   ordencompra_id: number,
   items: NuevoOrdenCompraDetalle[]
-): Promise<OrdenCompraDetalle[]> {
+): Promise<void> {
   const cabecera = cabecerasCompra.value.find(item => item.ordencompra_id === ordencompra_id)
   if (!cabecera) throw new Error('No existe la cabecera de la orden.')
   if (detallesCompra.value.some(item => item.ordencompra_id === ordencompra_id)) {
@@ -115,12 +114,19 @@ async function postOrdenCompraDetalle(
   const total = Math.round(nuevos.reduce((suma, item) => suma + item.subtotal, 0) * 100) / 100
   if (total !== cabecera.total) throw new Error('El total de los detalles no coincide con la cabecera.')
   detallesCompra.value.push(...nuevos)
-  return nuevos.map(item => ({ ...item }))
 }
 
-type OrdenCompraListado = Omit<OrdenComercial, 'estado_nombre'> & {
+interface OrdenCompraListado {
+  orden_id: number
   solicitante: string
+  fecha: string
   estado_nombre: OrdenCompraCabecera['estado']
+  total: number
+  detalles: {
+    detalle_id: number
+    producto_nombre: string
+    cantidad: number
+  }[]
 }
 
 const ordenes = ref<OrdenCompraListado[]>([])
@@ -164,27 +170,18 @@ async function verOrdenes() {
       getOrdenCompraCabeceras(),
       getOrdenCompraDetalles()
     ])
-    ordenes.value = cabeceras.map(cabecera => {
-      const proveedor = PROVEEDORES_MOCK.find(item => item.proveedor_id === cabecera.proveedor_id)
-      return {
-        orden_id: cabecera.ordencompra_id,
-        solicitante: cabecera.solicitante,
-        tipo_orden: 'Compra',
-        origen_id: cabecera.proveedor_id,
-        entidad_nombre: proveedor ? `${proveedor.nombre} ${proveedor.apellido}` : `Proveedor #${cabecera.proveedor_id}`,
-        fecha: cabecera.fecha,
-        estado_nombre: cabecera.estado,
-        total: cabecera.total,
-        detalles: detalles.filter(item => item.ordencompra_id === cabecera.ordencompra_id).map(item => ({
-          detalle_id: item.ordencompradetalle_id,
-          producto_id: item.producto_id,
-          producto_nombre: PRODUCTOS_MOCK.find(producto => producto.producto_id === item.producto_id)?.nombre ?? `Producto #${item.producto_id}`,
-          cantidad: item.cantidad,
-          preciounitario: item.preciounitario,
-          subtotal: item.subtotal
-        }))
-      }
-    })
+    ordenes.value = cabeceras.map(cabecera => ({
+      orden_id: cabecera.ordencompra_id,
+      solicitante: cabecera.solicitante,
+      fecha: cabecera.fecha,
+      estado_nombre: cabecera.estado,
+      total: cabecera.total,
+      detalles: detalles.filter(item => item.ordencompra_id === cabecera.ordencompra_id).map(item => ({
+        detalle_id: item.ordencompradetalle_id,
+        producto_nombre: PRODUCTOS_MOCK.find(producto => producto.producto_id === item.producto_id)?.nombre ?? `Producto #${item.producto_id}`,
+        cantidad: item.cantidad
+      }))
+    }))
     consultado.value = true
   } catch (error) {
     errorConsulta.value = error instanceof Error ? error.message : 'No se pudieron consultar las órdenes.'
@@ -330,7 +327,7 @@ onMounted(verOrdenes)
     <div v-if="errorConsulta" class="alert alert-danger" role="alert">{{ errorConsulta }}</div>
     <div v-if="errorAprobacion" class="alert alert-danger" role="alert">{{ errorAprobacion }}</div>
     
-    <div class="card shadow-sm border-0 mb-4 search-card">
+    <div class="card shadow-sm border-0 mb-4">
       <div class="card-body p-3">
         <div class="row">
           <div class="col-md-6">
