@@ -34,10 +34,14 @@ const facturasDeOrden = (id: number) => props.facturas.filter(item => item.orden
 
 const ordenesFiltradas = computed(() => {
   const texto = normalizar(busqueda.value)
-  return props.ordenes.filter(orden => normalizar([
-    orden.ordencompra_id, orden.solicitante, orden.fecha,
-    facturasDeOrden(orden.ordencompra_id).map(factura => factura.numero).join(' ')
-  ].join(' ')).includes(texto))
+  return props.ordenes.filter(orden => {
+    const proveedorOrden = proveedor(orden.proveedor_id)
+    return normalizar([
+      orden.ordencompra_id, orden.solicitante, orden.fecha,
+      proveedorOrden?.nombre, proveedorOrden?.apellido,
+      facturasDeOrden(orden.ordencompra_id).map(factura => factura.numero).join(' ')
+    ].join(' ')).includes(texto)
+  })
 })
 
 const seleccionada = computed(() => ordenesFiltradas.value.find(item => item.ordencompra_id === ordenId.value))
@@ -109,7 +113,7 @@ function mantenerFoco(event: KeyboardEvent) {
             <div class="card border-0 shadow-sm mb-4">
               <div class="card-body">
                 <label for="buscar-orden-consulta" class="form-label small fw-semibold">Buscar orden</label>
-                <input id="buscar-orden-consulta" ref="buscador" v-model="busqueda" type="search" class="form-control" :disabled="actualizando" placeholder="Número de orden, solicitante, fecha o comprobante..." />
+                <input id="buscar-orden-consulta" ref="buscador" v-model="busqueda" type="search" class="form-control" :disabled="actualizando" placeholder="Número de orden, solicitante, proveedor, fecha o comprobante..." />
                 <small class="text-muted" role="status">{{ ordenesFiltradas.length }} orden(es) encontradas</small>
               </div>
             </div>
@@ -214,8 +218,6 @@ function mantenerFoco(event: KeyboardEvent) {
 .modal-backdrop { opacity: 0.6; }
 .encabezado { background-color: #231f1d; border-bottom: 3px solid #b33e14; }
 .text-coralon { color: #b33e14; }
-.btn-coralon { background-color: #b33e14; border-color: #b33e14; color: #fff; }
-.btn-coralon:hover { background-color: #ff7a45; border-color: #ff7a45; }
 .btn-outline-coralon { border-color: #b33e14; color: #b33e14; }
 .btn-outline-coralon:hover:not(:disabled) { background-color: #b33e14; color: #fff; }
 .seleccionada { background-color: #fff1eb; border-left: 4px solid #b33e14; }
