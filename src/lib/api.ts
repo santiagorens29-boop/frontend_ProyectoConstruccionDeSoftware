@@ -1,5 +1,5 @@
 import axios from 'axios'
-
+/*
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8080/api',
   timeout: 10000,
@@ -15,5 +15,14 @@ api.interceptors.response.use(
     return Promise.reject(error)
   },
 )
+*/
 
+const api = axios.create({
+  baseURL: import.meta.env.VITE_API_BASE_URL,
+  headers: {
+    'Content-Type': 'application/json',
+    Accept: 'application/json'
+  },
+  timeout: 10000 // Tiempo límite de espera de 10 segundos
+})
 export default api

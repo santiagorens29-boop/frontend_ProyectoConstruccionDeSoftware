@@ -1,4 +1,4 @@
-import clienteAxios from '../api/clienteAxios'
+import api from '../lib/api'
 import type { Periodo, NuevoPeriodo } from '../types/finanzas'
 
 // Endpoint de tu hoja: /api/contabilidad/periodos/ (baseURL ya tiene /api)
@@ -8,7 +8,7 @@ const RUTA_PERIODOS = '/contabilidad/periodos/'
  * GET: Obtener todos los períodos contables
  */
 export async function obtenerPeriodos(): Promise<Periodo[]> {
-  const respuesta = await clienteAxios.get<Periodo[]>(RUTA_PERIODOS)
+  const respuesta = await api.get<Periodo[]>(RUTA_PERIODOS)
   return respuesta.data
 }
 
@@ -16,7 +16,7 @@ export async function obtenerPeriodos(): Promise<Periodo[]> {
  * GET por ID: Obtener un período puntual
  */
 export async function obtenerPeriodoPorId(id: number): Promise<Periodo> {
-  const respuesta = await clienteAxios.get<Periodo>(`${RUTA_PERIODOS}${id}/`)
+  const respuesta = await api.get<Periodo>(`${RUTA_PERIODOS}${id}/`)
   return respuesta.data
 }
 
@@ -24,7 +24,7 @@ export async function obtenerPeriodoPorId(id: number): Promise<Periodo> {
  * POST: Crear un nuevo período contable
  */
 export async function crearPeriodo(datos: NuevoPeriodo): Promise<Periodo> {
-  const respuesta = await clienteAxios.post<Periodo>(RUTA_PERIODOS, datos)
+  const respuesta = await api.post<Periodo>(RUTA_PERIODOS, datos)
   return respuesta.data
 }
 
@@ -32,6 +32,6 @@ export async function crearPeriodo(datos: NuevoPeriodo): Promise<Periodo> {
  * PUT: Modificar un período contable
  */
 export async function actualizarPeriodo(id: number, datos: Partial<NuevoPeriodo>): Promise<Periodo> {
-  const respuesta = await clienteAxios.put<Periodo>(`${RUTA_PERIODOS}${id}/`, datos)
+  const respuesta = await api.put<Periodo>(`${RUTA_PERIODOS}${id}/`, datos)
   return respuesta.data
 }
