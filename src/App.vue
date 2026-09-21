@@ -8,6 +8,7 @@ import ProductosView from './views/ProductosView.vue'
 import CargarStockView from './views/CargarStockView.vue'
 import ClientesView from './views/ClientesView.vue'
 import RegistrarVentaView from './views/RegistrarVentaView.vue'
+import DevolucionesView from './views/DevolucionesView.vue'
 import FinanzasFacturacionView from './views/FinanzasFacturacionView.vue'
 import FinanzasCierreView from './views/FinanzasCierreView.vue'
 import FinanzasPeriodosView from './views/FinanzasPeriodosView.vue'
@@ -81,7 +82,10 @@ const accionesSidebar = computed<{
         titulo: 'Registrar venta / Nueva factura',
         descripcion: 'Buscar cliente por CUIL y facturar'
       },
-      accion3: undefined
+      accion3: {
+        titulo: 'Devoluciones',
+        descripcion: 'Historial, anulaciones y notas de crédito'
+      }
     }
   }
 
@@ -135,6 +139,7 @@ const accionesSidebar = computed<{
         <template v-else-if="moduloActivo === 'ventas'">
           <ClientesView v-if="subVistaActiva === 'opcion1'" />
           <RegistrarVentaView v-else-if="subVistaActiva === 'opcion2'" />
+          <DevolucionesView v-else-if="subVistaActiva === 'opcion3'" />
         </template>
 
         <div v-else class="text-center py-5">

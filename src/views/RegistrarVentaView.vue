@@ -62,8 +62,13 @@ function agregarProducto(producto: Producto) {
   }
   busquedaProducto.value = ''
   mostrarSugerencias.value = false
+  
 }
-
+function ocultarSugerenciasConDelay() {
+  setTimeout(() => {
+    mostrarSugerencias.value = false
+  }, 150)
+}
 function quitarItem(id: number) {
   items.value = items.value.filter((i) => i.id !== id)
 }
@@ -159,8 +164,7 @@ function confirmarVenta() {
                 class="form-control form-control-sm"
                 placeholder="Buscar producto por nombre..."
                 @focus="mostrarSugerencias = true"
-                @blur="() => setTimeout(() => (mostrarSugerencias = false), 150)"
-              />
+                @blur="ocultarSugerenciasConDelay"              />
 
               <!-- Lista de sugerencias en vivo -->
               <ul
