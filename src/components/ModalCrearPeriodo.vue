@@ -31,8 +31,10 @@ const anioSeleccionado = ref<number>(2026)
 const mesSeleccionado = ref<number>(10)
 const errorValidacion = ref<string>('')
 
-// Validación para evitar duplicados según el boceto (ej: no puede haber dos Mayo 2026)
+// Validación protegida contra tipos no-array
 const esPeriodoDuplicado = computed(() => {
+  if (!Array.isArray(props.periodosExistentes)) return false
+
   return props.periodosExistentes.some(
     p => p.anio === Number(anioSeleccionado.value) && p.mes === Number(mesSeleccionado.value)
   )
