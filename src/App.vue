@@ -7,14 +7,14 @@ import OrdenesDeCompras from './views/OrdenesDeCompras.vue'
 import ProductosView from './views/ProductosView.vue'
 import CargarStockView from './views/CargarStockView.vue'
 import ClientesView from './views/ClientesView.vue'
+import RegistrarVentaView from './views/RegistrarVentaView.vue'
+import DevolucionesView from './views/DevolucionesView.vue'
 import FinanzasFacturacionView from './views/FinanzasFacturacionView.vue'
 import FinanzasCierreView from './views/FinanzasCierreView.vue'
 import FinanzasPeriodosView from './views/FinanzasPeriodosView.vue'
 
-// Estado del módulo general activo (coincide con los botones del Navbar)
 const moduloActivo = ref('administrativos')
 
-// Estado de la sub-acción activa dentro del módulo seleccionado (Sidebar)
 const subVistaActiva = ref<'opcion1' | 'opcion2' | 'opcion3'>('opcion2')
 
 function cambiarModulo(nuevoModulo: string) {
@@ -22,7 +22,6 @@ function cambiarModulo(nuevoModulo: string) {
   subVistaActiva.value = 'opcion1'
 }
 
-// Configuración dinámica del Sidebar según el módulo activo
 const accionesSidebar = computed<{
   accion1: AccionSidebar
   accion2: AccionSidebar
@@ -83,7 +82,10 @@ const accionesSidebar = computed<{
         titulo: 'Registrar venta / Nueva factura',
         descripcion: 'Buscar cliente por CUIL y facturar'
       },
-      accion3: undefined
+      accion3: {
+        titulo: 'Devoluciones',
+        descripcion: 'Historial, anulaciones y notas de crédito'
+      }
     }
   }
 
@@ -116,36 +118,30 @@ const accionesSidebar = computed<{
         :sub-vista-activa="subVistaActiva"
         @seleccionar-accion="(opcion) => subVistaActiva = opcion"
       />
-      
+
       <main class="flex-grow-1 p-4">
-        <!-- Módulo Finanzas -->
         <template v-if="moduloActivo === 'finanzas'">
           <FinanzasFacturacionView v-if="subVistaActiva === 'opcion1'" />
           <FinanzasCierreView v-else-if="subVistaActiva === 'opcion2'" />
           <FinanzasPeriodosView v-else-if="subVistaActiva === 'opcion3'" />
         </template>
 
-        <!-- Módulo Sistemas Administrativos -->
         <template v-else-if="moduloActivo === 'administrativos'">
           <ProductosView v-if="subVistaActiva === 'opcion1'" />
           <CargarStockView v-else />
         </template>
 
-        <!-- Módulo Proveedores y Compra -->
         <template v-else-if="moduloActivo === 'proveedores'">
           <ProveedoresView v-if="subVistaActiva === 'opcion1'" />
           <OrdenesDeCompras v-else-if="subVistaActiva === 'opcion2'" />
         </template>
 
-        <!-- Módulo Ventas / Clientes -->
         <template v-else-if="moduloActivo === 'ventas'">
           <ClientesView v-if="subVistaActiva === 'opcion1'" />
-          <div v-else class="text-center py-5">
-            <h4 class="text-muted">Órdenes de Venta en Construcción</h4>
-          </div>
+          <RegistrarVentaView v-else-if="subVistaActiva === 'opcion2'" />
+          <DevolucionesView v-else-if="subVistaActiva === 'opcion3'" />
         </template>
 
-        <!-- Fallback -->
         <div v-else class="text-center py-5">
           <h4 class="text-muted">Módulo en construcción</h4>
         </div>
