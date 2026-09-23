@@ -18,7 +18,7 @@ api.interceptors.response.use(
 */
 
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL,
+  baseURL: import.meta.env.VITE_API_BASE_URL || 'https://corralon.ordema.app:8080/api',
   headers: {
     'Content-Type': 'application/json',
     Accept: 'application/json'

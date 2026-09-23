@@ -1,15 +1,58 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { PROVEEDORES_MOCK, type Proveedor, type NuevoProveedor } from '../types/proveedor'
 import { PRODUCTOS_MOCK } from '../types/producto'
+import { obtenerProveedores, crearProveedor, actualizarProveedor } from '../services/proveedoresService'
 import ModalProveedor from '../components/ModalProveedor.vue'
 
-const listaProveedores = ref<Proveedor[]>([...PROVEEDORES_MOCK])
+const listaProveedores = ref<Proveedor[]>([])
+const cargando = ref(false)
+const mensajeError = ref('')
+const mensajeExito = ref('')
+
 const filtroBusqueda = ref('')
 const proveedorSeleccionado = ref<Proveedor | null>(null)
 
 const mostrarModal = ref(false)
 const proveedorParaEditar = ref<Proveedor | null>(null)
+
+// GET: Cargar proveedores con validación de tipo array y fallback a MOCK
+async function cargarProveedores() {
+  cargando.value = true
+  mensajeError.value = ''
+  try {
+    const respuesta = await obtenerProveedores()
+    
+    let datosCrudos: any[] = []
+    if (Array.isArray(respuesta)) {
+      datosCrudos = respuesta
+    } else if (respuesta && typeof respuesta === 'object' && Array.isArray((respuesta as any).results)) {
+      datosCrudos = (respuesta as any).results
+    } else {
+      console.warn('La respuesta de la API no es un array válido. Usando datos mock.', respuesta)
+      listaProveedores.value = [...PROVEEDORES_MOCK]
+      return
+    }
+
+    // Normalización de propiedades para tolerar snake_case o camelCase
+    listaProveedores.value = datosCrudos.map((item: any) => ({
+      proveedor_id: Number(item.proveedor_id ?? item.id ?? 0),
+      nombre: String(item.nombre ?? ''),
+      apellido: String(item.apellido ?? ''),
+      email: String(item.email ?? ''),
+      telefono: String(item.telefono ?? ''),
+      cuit: String(item.cuit ?? ''),
+      direccion: String(item.direccion ?? ''),
+      producto_id: Number(item.producto_id ?? 1),
+      producto_nombre: item.producto_nombre ?? item.producto ?? 'Asignado'
+    }))
+  } catch (error) {
+    console.warn('Backend no disponible o error de autenticación. Usando datos mock.', error)
+    listaProveedores.value = [...PROVEEDORES_MOCK]
+  } finally {
+    cargando.value = false
+  }
+}
 
 const proveedoresFiltrados = computed(() => {
   const busqueda = filtroBusqueda.value.toLowerCase().trim()
@@ -48,34 +91,80 @@ function cerrarModal() {
   proveedorParaEditar.value = null
 }
 
-function guardarProveedor(datos: Proveedor | NuevoProveedor) {
+function mostrarMensaje(texto: string, tipo: 'exito' | 'error') {
+  if (tipo === 'exito') {
+    mensajeExito.value = texto
+    setTimeout(() => { mensajeExito.value = '' }, 4000)
+  } else {
+    mensajeError.value = texto
+    setTimeout(() => { mensajeError.value = '' }, 5000)
+  }
+}
+
+// POST / PUT: Guardar cambios conectando con el backend
+async function guardarProveedor(datos: Proveedor | NuevoProveedor) {
   const prodEncontrado = PRODUCTOS_MOCK.find(p => p.producto_id === datos.producto_id)
   const nombreProd = prodEncontrado ? prodEncontrado.nombre : (datos.producto_nombre || 'Sin asignar')
 
+  // EDICIÓN (PUT)
   if ('proveedor_id' in datos && datos.proveedor_id) {
-    const index = listaProveedores.value.findIndex(p => p.proveedor_id === datos.proveedor_id)
-    if (index !== -1) {
-      const proveedorActualizado: Proveedor = {
-        ...(datos as Proveedor),
+    try {
+      const actualizado = await actualizarProveedor(datos.proveedor_id, datos)
+      const index = listaProveedores.value.findIndex(p => p.proveedor_id === datos.proveedor_id)
+      if (index !== -1) {
+        const itemActualizado: Proveedor = {
+          ...actualizado,
+          producto_nombre: nombreProd
+        }
+        listaProveedores.value[index] = itemActualizado
+        proveedorSeleccionado.value = itemActualizado
+      }
+      mostrarMensaje('Proveedor actualizado con éxito en el backend.', 'exito')
+    } catch (error) {
+      console.warn('Error al actualizar en backend. Aplicando cambio en memoria.', error)
+      const index = listaProveedores.value.findIndex(p => p.proveedor_id === datos.proveedor_id)
+      if (index !== -1) {
+        const itemActualizado: Proveedor = {
+          ...(datos as Proveedor),
+          producto_nombre: nombreProd
+        }
+        listaProveedores.value[index] = itemActualizado
+        proveedorSeleccionado.value = itemActualizado
+      }
+      mostrarMensaje('Proveedor actualizado en memoria local (sin persistencia en API).', 'exito')
+    }
+  } 
+  // CREACIÓN (POST)
+  else {
+    try {
+      const nuevo = await crearProveedor(datos as NuevoProveedor)
+      const proveedorNormalizado: Proveedor = {
+        ...nuevo,
         producto_nombre: nombreProd
       }
-      listaProveedores.value[index] = proveedorActualizado
-      proveedorSeleccionado.value = proveedorActualizado
-    }
-  } else {
-    const nuevoId = listaProveedores.value.length > 0 
-      ? Math.max(...listaProveedores.value.map(p => p.proveedor_id)) + 1 
-      : 1
+      listaProveedores.value.unshift(proveedorNormalizado)
+      mostrarMensaje('Proveedor creado con éxito en el backend.', 'exito')
+    } catch (error) {
+      console.warn('Error al crear en backend. Guardando en memoria local.', error)
+      const nuevoId = listaProveedores.value.length > 0 
+        ? Math.max(...listaProveedores.value.map(p => p.proveedor_id)) + 1 
+        : 1
 
-    const nuevo: Proveedor = {
-      ...(datos as NuevoProveedor),
-      proveedor_id: nuevoId,
-      producto_nombre: nombreProd
+      const nuevo: Proveedor = {
+        ...(datos as NuevoProveedor),
+        proveedor_id: nuevoId,
+        producto_nombre: nombreProd
+      }
+      listaProveedores.value.unshift(nuevo)
+      mostrarMensaje('Proveedor guardado en memoria local (sin persistencia en API).', 'exito')
     }
-    listaProveedores.value.push(nuevo)
   }
   cerrarModal()
 }
+
+onMounted(() => {
+  cargarProveedores()
+})
 </script>
 
 <template>
@@ -88,7 +177,6 @@ function guardarProveedor(datos: Proveedor | NuevoProveedor) {
       </div>
 
       <div class="d-flex gap-2">
-        <!-- Botón Editar con SVG -->
         <button 
           class="btn btn-outline-coralon d-flex align-items-center gap-2 px-3 fw-semibold"
           :disabled="!proveedorSeleccionado"
@@ -100,7 +188,6 @@ function guardarProveedor(datos: Proveedor | NuevoProveedor) {
           <span>Editar Seleccionado</span>
         </button>
 
-        <!-- Botón Nuevo Proveedor con SVG -->
         <button 
           class="btn btn-coralon d-flex align-items-center gap-2 px-3 fw-semibold"
           @click="abrirModalCrear"
@@ -113,7 +200,15 @@ function guardarProveedor(datos: Proveedor | NuevoProveedor) {
       </div>
     </div>
 
-    <!-- Buscador con SVG -->
+    <!-- Alertas -->
+    <div v-if="mensajeExito" class="alert alert-success py-2 small mb-3" role="status">
+      {{ mensajeExito }}
+    </div>
+    <div v-if="mensajeError" class="alert alert-danger py-2 small mb-3" role="alert">
+      {{ mensajeError }}
+    </div>
+
+    <!-- Buscador -->
     <div class="card shadow-sm border-0 mb-4 search-card">
       <div class="card-body p-3">
         <div class="row">
@@ -173,7 +268,13 @@ function guardarProveedor(datos: Proveedor | NuevoProveedor) {
               <td>{{ proveedor.email }}</td>
               <td class="pe-3 text-secondary">{{ proveedor.direccion }}</td>
             </tr>
-            <tr v-if="proveedoresFiltrados.length === 0">
+            <tr v-if="cargando">
+              <td colspan="8" class="text-center py-4 text-muted">
+                <span class="spinner-border spinner-border-sm me-2" role="status"></span>
+                Cargando proveedores...
+              </td>
+            </tr>
+            <tr v-else-if="proveedoresFiltrados.length === 0">
               <td colspan="8" class="text-center py-5 text-muted">
                 No se encontraron proveedores que coincidan con la búsqueda.
               </td>
