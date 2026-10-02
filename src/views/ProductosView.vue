@@ -1,9 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { 
-  PRODUCTOS_MOCK, 
   type Producto, 
-  type NuevoProducto, 
   type MovimientoInventario 
 } from '../types/producto'
 import { RUBROS_MOCK, type Rubro } from '../types/rubro'
