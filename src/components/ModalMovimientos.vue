@@ -64,16 +64,16 @@ function cerrar() {
                       <span 
                         class="badge" 
                         :class="{
-                          'bg-success': mov.tipo === 'Ingreso',
-                          'bg-danger': mov.tipo === 'Egreso',
-                          'bg-warning text-dark': mov.tipo === 'Ajuste'
+                          'bg-success': mov.tipo === 'Ingreso' || mov.tipo === 'ENTRADA' || mov.tipo === 'DEVOLUCION',
+                          'bg-danger': mov.tipo === 'Egreso' || mov.tipo === 'SALIDA',
+                          'bg-warning text-dark': mov.tipo === 'Ajuste' || mov.tipo === 'AJUSTE'
                         }"
                       >
                         {{ mov.tipo }}
                       </span>
                     </td>
                     <td class="fw-semibold">
-                      {{ mov.tipo === 'Ingreso' ? `+${mov.cantidad}` : (mov.tipo === 'Egreso' ? `-${mov.cantidad}` : mov.cantidad) }} un.
+                      {{ (mov.tipo === 'Ingreso' || mov.tipo === 'ENTRADA') ? `+${mov.cantidad}` : ((mov.tipo === 'Egreso' || mov.tipo === 'SALIDA') ? `-${mov.cantidad}` : mov.cantidad) }} un.
                     </td>
                     <td class="text-secondary small">{{ mov.observacion }}</td>
                   </tr>
