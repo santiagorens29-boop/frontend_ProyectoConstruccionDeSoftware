@@ -1,14 +1,17 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
 import type { Cliente, NuevoCliente } from '../types/cliente'
 import { CONDICIONES_IVA } from '../types/cliente'
 
 interface Props {
   mostrar: boolean
   clienteAEditar: Cliente | null
+  cuilsExistentes?: string[]
 }
 
-const props = defineProps<Props>()
+const props = withDefaults(defineProps<Props>(), {
+  cuilsExistentes: () => [],
+})
 
 const emit = defineEmits<{
   (e: 'cerrar'): void
@@ -37,11 +40,36 @@ watch(
   { immediate: true }
 )
 
+// El CUIL se escribe como 11 números seguidos: se borra todo lo que no sea dígito
+function limpiarCuil() {
+  formulario.value.cuil = formulario.value.cuil.replace(/\D/g, '').slice(0, 11)
+}
+
+// Mensaje de error del CUIL (vacío = está bien)
+const errorCuil = computed(() => {
+  const cuil = formulario.value.cuil
+  if (cuil.length === 0) return ''
+
+  if (cuil.length !== 11) {
+    return 'El CUIL debe tener 11 dígitos numéricos, sin guiones.'
+  }
+
+  // Al editar, el CUIL del propio cliente no cuenta como repetido
+  const cuilOriginal = props.clienteAEditar?.cuil
+  const repetido = props.cuilsExistentes.some((c) => c === cuil && c !== cuilOriginal)
+  if (repetido) {
+    return 'Ya existe un cliente con ese CUIL.'
+  }
+
+  return ''
+})
+
 function cerrarModal() {
   emit('cerrar')
 }
 
 function guardarCliente() {
+  if (errorCuil.value) return
   emit('guardar', { ...formulario.value })
 }
 </script>
@@ -71,10 +99,15 @@ function guardarCliente() {
                   <input
                     v-model="formulario.cuil"
                     type="text"
+                    inputmode="numeric"
+                    maxlength="11"
                     class="form-control custom-input"
-                    placeholder="20-12345678-3"
+                    :class="{ 'is-invalid': errorCuil }"
+                    placeholder="20123456783"
                     required
+                    @input="limpiarCuil"
                   />
+                  <div v-if="errorCuil" class="invalid-feedback d-block">{{ errorCuil }}</div>
                 </div>
 
                 <!-- Condición IVA -->
@@ -144,7 +177,7 @@ function guardarCliente() {
             <!-- Footer con acciones -->
             <div class="modal-footer bg-light px-4 py-3 border-top">
               <button type="button" class="btn btn-secondary px-4" @click="cerrarModal">Cancelar</button>
-              <button type="submit" class="btn btn-coralon px-4 fw-semibold">
+              <button type="submit" class="btn btn-coralon px-4 fw-semibold" :disabled="!!errorCuil">
                 {{ clienteAEditar ? 'Guardar Cambios' : 'Guardar Cliente' }}
               </button>
             </div>

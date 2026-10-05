@@ -4,7 +4,6 @@ export interface ItemVenta {
   nombre: string
   cantidad: number
   precioUnitario: number
-  descuento: number
 }
 
 export const TIPOS_COMPROBANTE = ['Factura A', 'Factura B', 'Factura C', 'Nota de venta']

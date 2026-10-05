@@ -20,6 +20,9 @@ const clientesFiltrados = computed(() => {
   )
 })
 
+// CUILs ya cargados, para que el modal avise si se intenta repetir uno
+const cuilsExistentes = computed(() => listaClientes.value.map((c) => c.cuil))
+
 function seleccionarFila(cliente: Cliente) {
   if (clienteSeleccionado.value?.cliente_id === cliente.cliente_id) {
     clienteSeleccionado.value = null
@@ -165,6 +168,7 @@ function guardarCliente(datos: Cliente | NuevoCliente) {
     <ModalCliente
       :mostrar="mostrarModal"
       :cliente-a-editar="clienteParaEditar"
+      :cuils-existentes="cuilsExistentes"
       @cerrar="cerrarModal"
       @guardar="guardarCliente"
     />
