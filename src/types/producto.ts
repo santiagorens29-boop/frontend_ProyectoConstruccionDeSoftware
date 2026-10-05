@@ -31,6 +31,16 @@ export interface ProductoBackendInput {
 // Tipo para creación de producto en frontend
 export type NuevoProducto = Omit<Producto, 'producto_id' | 'id' | 'stockactual' | 'stock_actual' | 'activo'>
 
+// Tipos de movimiento aceptados (tanto formato mock como formato Django backend)
+export type TipoMovimientoInventario = 
+  | 'Ingreso' 
+  | 'Egreso' 
+  | 'Ajuste' 
+  | 'ENTRADA' 
+  | 'SALIDA' 
+  | 'AJUSTE' 
+  | 'DEVOLUCION'
+
 // Contrato para Movimiento de Inventario
 export interface MovimientoInventario {
   movimientoinventario_id: number
@@ -38,7 +48,7 @@ export interface MovimientoInventario {
   producto_id: number
   producto?: number
   usuario_id: number
-  tipo: 'Ingreso' | 'Egreso' | 'Ajuste'
+  tipo: TipoMovimientoInventario | string
   cantidad: number
   fecha: string
   observacion: string
