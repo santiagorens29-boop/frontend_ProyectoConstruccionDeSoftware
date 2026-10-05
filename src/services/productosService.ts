@@ -110,8 +110,8 @@ export async function obtenerMovimientosPorProducto(productoId: number): Promise
         usuario_id: m.usuario ?? m.usuario_id ?? 1,
         tipo: m.tipo,
         cantidad: m.cantidad,
-        fecha: m.fecha || m.created_at || '',
-        observacion: m.observacion || m.motivo || ''
+        fecha: m.fecha ? new Date(m.fecha).toLocaleString('es-AR') : '',
+        observacion: m.observacion || ''
       }))
     }
 
