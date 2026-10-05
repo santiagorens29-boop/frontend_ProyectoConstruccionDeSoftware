@@ -21,7 +21,7 @@ export const CONDICIONES_IVA = [
 export const CLIENTES_MOCK: Cliente[] = [
   {
     cliente_id: 1,
-    cuil: '20-31456789-2',
+    cuil: '20314567892',
     nombre: 'Estudio ABC',
     telefono: '11-4455-6677',
     email: '',
@@ -31,7 +31,7 @@ export const CLIENTES_MOCK: Cliente[] = [
   },
   {
     cliente_id: 2,
-    cuil: '27-28564321-5',
+    cuil: '27285643215',
     nombre: 'María Fernández',
     telefono: '11-2233-4455',
     email: '',
@@ -41,7 +41,7 @@ export const CLIENTES_MOCK: Cliente[] = [
   },
   {
     cliente_id: 3,
-    cuil: '20-24897733-9',
+    cuil: '20248977339',
     nombre: 'Corralón San Martín S.R.L.',
     telefono: '351-555-0192',
     email: '',

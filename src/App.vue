@@ -86,8 +86,8 @@ const accionesSidebar = computed<{
         descripcion: 'Alta, baja y modificación'
       },
       accion2: {
-        titulo: 'Registrar venta / Nueva factura',
-        descripcion: 'Buscar cliente por CUIL y facturar'
+        titulo: 'Generar orden de venta',
+        descripcion: 'Buscar cliente por CUIL y generar la orden'
       },
       accion3: {
         titulo: 'Devoluciones',
