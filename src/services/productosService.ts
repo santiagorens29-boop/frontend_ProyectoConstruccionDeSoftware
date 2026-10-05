@@ -9,6 +9,15 @@ import {
 
 const RUTA_PRODUCTOS = '/scm/productos/'
 
+// Tipo auxiliar requerido por OrdenesDeCompras y ProveedoresView
+export interface ProductoProveedor {
+  id: number
+  nombre: string
+  codigo?: string
+  precio?: number
+  rubro?: number | string
+}
+
 interface RespuestaProductosAPI {
   count?: number
   next?: string | null
@@ -88,10 +97,8 @@ export async function actualizarProducto(id: number, datos: Partial<Producto>): 
 
 export async function inactivarProducto(id: number): Promise<void> {
   try {
-    // Si la API tiene endpoint DELETE o PATCH de inactivación
     await api.delete(`${RUTA_PRODUCTOS}${id}/`)
   } catch (error) {
-    // Fallback con patch si maneja soft-delete
     await api.patch(`${RUTA_PRODUCTOS}${id}/`, { activo: false })
   }
 }
@@ -119,5 +126,24 @@ export async function obtenerMovimientosPorProducto(productoId: number): Promise
   } catch (error) {
     console.warn('Backend de movimientos no disponible. Usando mocks.', error)
     return MOVIMIENTOS_INVENTARIO_MOCK.filter(m => m.producto_id === productoId)
+  }
+}
+
+// Función auxiliar exportada para las vistas de compras y proveedores
+export async function obtenerProductosProveedor(): Promise<ProductoProveedor[]> {
+  try {
+    const productos = await obtenerProductos()
+    return productos.map(p => ({
+      id: p.id ?? p.producto_id,
+      nombre: p.nombre,
+      codigo: p.codigo,
+      precio: typeof p.precio === 'string' ? parseFloat(p.precio) : p.precio,
+      rubro: p.rubro_nombre ?? p.rubro_id
+    }))
+  } catch {
+    return [
+      { id: 1, nombre: 'Cemento Portland Normal 50kg', codigo: 'ART-001', precio: 9800 },
+      { id: 2, nombre: 'Hierro Conformado 12mm x 12m', codigo: 'ART-002', precio: 14500 }
+    ]
   }
 }
