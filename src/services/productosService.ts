@@ -7,46 +7,143 @@ import {
   type MovimientoInventario
 } from '../types/producto'
 
-const RUTA_PRODUCTOS = '/inventario/productos/'
+const RUTA_PRODUCTOS = '/scm/productos/'
+
+// Tipo auxiliar requerido por OrdenesDeCompras y ProveedoresView
+export interface ProductoProveedor {
+  id: number
+  nombre: string
+  codigo?: string
+  precio?: number
+  rubro?: number | string
+}
+
+interface RespuestaProductosAPI {
+  count?: number
+  next?: string | null
+  previous?: string | null
+  results?: any[]
+}
+
+function mapearProductoDesdeBackend(item: any): Producto {
+  const id = item.id ?? item.producto_id
+  const precioNumerico = typeof item.precio === 'string' ? parseFloat(item.precio) : (item.precio ?? item.preciounitario ?? 0)
+  const rubroId = item.rubro ?? item.rubro_id ?? 101
+
+  return {
+    id,
+    producto_id: id,
+    codigo: item.codigo || `ART-${id}`,
+    nombre: item.nombre || '',
+    descripcion: item.descripcion || '',
+    precio: precioNumerico,
+    preciounitario: precioNumerico,
+    rubro: rubroId,
+    rubro_id: rubroId,
+    rubro_nombre: item.rubro_nombre,
+    stock_actual: item.stock_actual ?? item.stockactual ?? 0,
+    stockactual: item.stock_actual ?? item.stockactual ?? 0,
+    stock_minimo: item.stock_minimo ?? item.stockminreposicion ?? 0,
+    stockminreposicion: item.stock_minimo ?? item.stockminreposicion ?? 0,
+    necesita_reposicion: item.necesita_reposicion,
+    activo: item.activo !== false
+  }
+}
 
 export async function obtenerProductos(): Promise<Producto[]> {
   try {
-    const respuesta = await api.get<Producto[]>(RUTA_PRODUCTOS)
-    return Array.isArray(respuesta.data) ? respuesta.data : PRODUCTOS_MOCK
+    const respuesta = await api.get<RespuestaProductosAPI | any[]>(RUTA_PRODUCTOS)
+    const items = Array.isArray(respuesta.data)
+      ? respuesta.data
+      : (respuesta.data?.results || [])
+
+    if (items.length > 0) {
+      return items.map(mapearProductoDesdeBackend)
+    }
+
+    return PRODUCTOS_MOCK
   } catch (error) {
     console.warn('Backend de productos no disponible. Usando mocks.', error)
     return PRODUCTOS_MOCK
   }
 }
 
-export async function crearProducto(datos: NuevoProducto): Promise<Producto> {
-  const respuesta = await api.post<Producto>(RUTA_PRODUCTOS, datos)
-  return respuesta.data
+export async function crearProducto(datos: NuevoProducto & { codigo?: string }): Promise<Producto> {
+  const payload = {
+    codigo: datos.codigo || `ART-${Date.now().toString().slice(-4)}`,
+    nombre: datos.nombre,
+    descripcion: datos.descripcion,
+    precio: datos.preciounitario,
+    rubro: datos.rubro_id,
+    stock_minimo: datos.stockminreposicion
+  }
+
+  const respuesta = await api.post(RUTA_PRODUCTOS, payload)
+  return mapearProductoDesdeBackend(respuesta.data)
 }
 
 export async function actualizarProducto(id: number, datos: Partial<Producto>): Promise<Producto> {
-  const respuesta = await api.put<Producto>(`${RUTA_PRODUCTOS}${id}/`, datos)
-  return respuesta.data
+  const payload: any = {}
+  if (datos.codigo !== undefined) payload.codigo = datos.codigo
+  if (datos.nombre !== undefined) payload.nombre = datos.nombre
+  if (datos.descripcion !== undefined) payload.descripcion = datos.descripcion
+  if (datos.preciounitario !== undefined) payload.precio = datos.preciounitario
+  if (datos.rubro_id !== undefined) payload.rubro = datos.rubro_id
+  if (datos.stockminreposicion !== undefined) payload.stock_minimo = datos.stockminreposicion
+
+  const respuesta = await api.patch(`${RUTA_PRODUCTOS}${id}/`, payload)
+  return mapearProductoDesdeBackend(respuesta.data)
 }
 
-// Baja lógica: inactiva el producto en el backend sin eliminar registros relacionados
 export async function inactivarProducto(id: number): Promise<void> {
-  await api.patch(`${RUTA_PRODUCTOS}${id}/`, { activo: false })
+  try {
+    await api.delete(`${RUTA_PRODUCTOS}${id}/`)
+  } catch (error) {
+    await api.patch(`${RUTA_PRODUCTOS}${id}/`, { activo: false })
+  }
 }
 
-// Consulta de movimientos asociados al producto
 export async function obtenerMovimientosPorProducto(productoId: number): Promise<MovimientoInventario[]> {
   try {
-    const respuesta = await api.get<MovimientoInventario[]>(`/inventario/movimientos/?producto_id=${productoId}`)
-    return Array.isArray(respuesta.data)
+    const respuesta = await api.get<any>(`/scm/movimientos-inventario/?producto=${productoId}`)
+    const items = Array.isArray(respuesta.data)
       ? respuesta.data
-      : MOVIMIENTOS_INVENTARIO_MOCK.filter(m => m.producto_id === productoId)
+      : (respuesta.data?.results || [])
+
+    if (items.length > 0) {
+      return items.map((m: any) => ({
+        movimientoinventario_id: m.id ?? m.movimientoinventario_id,
+        producto_id: m.producto ?? m.producto_id,
+        usuario_id: m.usuario ?? m.usuario_id ?? 1,
+        tipo: m.tipo,
+        cantidad: m.cantidad,
+        fecha: m.fecha ? new Date(m.fecha).toLocaleString('es-AR') : '',
+        observacion: m.observacion || ''
+      }))
+    }
+
+    return MOVIMIENTOS_INVENTARIO_MOCK.filter(m => m.producto_id === productoId)
   } catch (error) {
     console.warn('Backend de movimientos no disponible. Usando mocks.', error)
     return MOVIMIENTOS_INVENTARIO_MOCK.filter(m => m.producto_id === productoId)
   }
 }
-// Catálogo real utilizado por compras y proveedores.
-import { obtenerTodasLasPaginas } from './paginacion'
-export interface ProductoProveedor { id: number; codigo: string; nombre: string; precio: string }
-export const obtenerProductosProveedor = () => obtenerTodasLasPaginas<ProductoProveedor>('/scm/productos/')
+
+// Función auxiliar exportada para las vistas de compras y proveedores
+export async function obtenerProductosProveedor(): Promise<ProductoProveedor[]> {
+  try {
+    const productos = await obtenerProductos()
+    return productos.map(p => ({
+      id: p.id ?? p.producto_id,
+      nombre: p.nombre,
+      codigo: p.codigo,
+      precio: typeof p.precio === 'string' ? parseFloat(p.precio) : p.precio,
+      rubro: p.rubro_nombre ?? p.rubro_id
+    }))
+  } catch {
+    return [
+      { id: 1, nombre: 'Cemento Portland Normal 50kg', codigo: 'ART-001', precio: 9800 },
+      { id: 2, nombre: 'Hierro Conformado 12mm x 12m', codigo: 'ART-002', precio: 14500 }
+    ]
+  }
+}
