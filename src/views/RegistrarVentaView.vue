@@ -1,8 +1,25 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { CLIENTES_MOCK, type Cliente } from '../types/cliente'
-import { PRODUCTOS_MOCK, type Producto } from '../types/producto'
-import { METODOS_PAGO, IVA_PORCENTAJE, type ItemVenta } from '../types/venta'
+import { ref, computed, onMounted } from 'vue'
+import type { Cliente } from '../types/cliente'
+import { METODOS_PAGO, IVA_PORCENTAJE, type ItemVenta, type ProductoVenta } from '../types/venta'
+import { obtenerClientes, obtenerProductosVenta } from '../services/ventasService'
+
+// --- Datos que vienen del backend ---
+const clientesRegistrados = ref<Cliente[]>([])
+const productosDisponibles = ref<ProductoVenta[]>([])
+const errorCarga = ref('')
+
+onMounted(async () => {
+  try {
+    ;[clientesRegistrados.value, productosDisponibles.value] = await Promise.all([
+      obtenerClientes(),
+      obtenerProductosVenta(),
+    ])
+  } catch (err) {
+    console.error(err)
+    errorCarga.value = 'Error: no se pudieron cargar los clientes y productos. Verificá que el servidor esté disponible.'
+  }
+})
 
 // --- Búsqueda de cliente por CUIL ---
 const cuilBuscado = ref('')
@@ -20,7 +37,7 @@ const cuilCompleto = computed(() => cuilBuscado.value.length === 11)
 
 function buscarCliente() {
   if (!cuilCompleto.value) return
-  const encontrado = CLIENTES_MOCK.find((c) => c.cuil === cuilBuscado.value)
+  const encontrado = clientesRegistrados.value.find((c) => c.cuil === cuilBuscado.value)
   clienteEncontrado.value = encontrado ?? null
   busquedaSinResultado.value = !encontrado
 }
@@ -48,13 +65,13 @@ const busquedaProducto = ref('')
 const mostrarSugerencias = ref(false)
 
 // Lista de coincidencias en vivo, a medida que se escribe
-const sugerencias = computed<Producto[]>(() => {
+const sugerencias = computed<ProductoVenta[]>(() => {
   const termino = busquedaProducto.value.trim().toLowerCase()
   if (!termino) return []
-  return PRODUCTOS_MOCK.filter((p) => p.nombre.toLowerCase().includes(termino)).slice(0, 6)
+  return productosDisponibles.value.filter((p) => p.nombre.toLowerCase().includes(termino)).slice(0, 6)
 })
 
-function agregarProducto(producto: Producto) {
+function agregarProducto(producto: ProductoVenta) {
   const existente = items.value.find((i) => i.productoId === producto.producto_id)
   if (existente) {
     existente.cantidad += 1
@@ -121,6 +138,8 @@ function generarOrdenVenta() {
       <h3 class="fw-bold mb-0 text-dark">Generar orden de venta</h3>
       <p class="text-muted small mb-0">Nueva orden de venta</p>
     </div>
+
+    <div v-if="errorCarga" class="alert alert-danger">{{ errorCarga }}</div>
 
     <!-- Encabezado -->
     <div class="card shadow-sm border-0 mb-4">

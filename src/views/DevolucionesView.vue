@@ -1,9 +1,27 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { VENTAS_MOCK, DESTINOS_DEVOLUCION, type VentaHistorial } from '../types/devolucion'
+import { ref, computed, onMounted } from 'vue'
+import { DESTINOS_DEVOLUCION, type VentaHistorial } from '../types/devolucion'
+import { obtenerOrdenesVenta } from '../services/ventasService'
 import ModalAnulacion from '../components/ModalAnulacion.vue'
 
-const ventas = ref<VentaHistorial[]>([...VENTAS_MOCK])
+const ventas = ref<VentaHistorial[]>([])
+const cargando = ref(false)
+const error = ref('')
+
+async function cargarVentas() {
+  cargando.value = true
+  error.value = ''
+  try {
+    ventas.value = await obtenerOrdenesVenta()
+  } catch (err) {
+    console.error(err)
+    error.value = 'Error: no se pudo cargar el historial de ventas. Verificá que el servidor esté disponible.'
+  } finally {
+    cargando.value = false
+  }
+}
+
+onMounted(cargarVentas)
 const busqueda = ref('')
 
 const ventasFiltradas = computed(() => {
@@ -152,7 +170,13 @@ function generarNotaCredito() {
                 </button>
               </td>
             </tr>
-            <tr v-if="ventasFiltradas.length === 0">
+            <tr v-if="cargando">
+              <td colspan="6" class="text-center text-muted py-4">Cargando historial de ventas...</td>
+            </tr>
+            <tr v-else-if="error">
+              <td colspan="6" class="text-center text-danger py-4">{{ error }}</td>
+            </tr>
+            <tr v-else-if="ventasFiltradas.length === 0">
               <td colspan="6" class="text-center text-muted py-4">No se encontraron ventas.</td>
             </tr>
           </tbody>
