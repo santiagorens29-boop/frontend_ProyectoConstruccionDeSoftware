@@ -1,36 +1,55 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import {
-  PRODUCTOS_MOCK,
-  MOVIMIENTOS_INVENTARIO_MOCK,
-  type Producto,
-  type MovimientoInventario
-} from '../types/producto'
+import { ref, computed, onMounted } from 'vue'
+import { PRODUCTOS_MOCK, type Producto } from '../types/producto'
+import { obtenerProductos } from '../services/productosService'
+import { crearOrdenCompra } from '../services/comprasService'
 import ModalReponerStock from '../components/ModalReponerStock.vue'
 
-// Estado reactivo en memoria
-const productos = ref<Producto[]>([...PRODUCTOS_MOCK])
-const movimientos = ref<MovimientoInventario[]>([...MOVIMIENTOS_INVENTARIO_MOCK])
-
+// Estado reactivo conectado
+const productos = ref<Producto[]>([])
+const cargando = ref(false)
 const filtroBusqueda = ref('')
 const productoSeleccionado = ref<Producto | null>(null)
 const mostrarModalReponer = ref(false)
 const mensajeExito = ref('')
+const mensajeError = ref('')
+
+async function cargarListaProductos() {
+  cargando.value = true
+  try {
+    const data = await obtenerProductos()
+    productos.value = data
+  } catch (error) {
+    console.error('Error al cargar productos desde la API:', error)
+    productos.value = [...PRODUCTOS_MOCK]
+  } finally {
+    cargando.value = false
+  }
+}
+
+onMounted(() => {
+  cargarListaProductos()
+})
 
 // Filtrado reactivo por código o nombre
 const productosFiltrados = computed(() => {
   const termino = filtroBusqueda.value.toLowerCase().trim()
   if (!termino) return productos.value
 
-  return productos.value.filter(p =>
-    p.producto_id.toString().includes(termino) ||
-    p.nombre.toLowerCase().includes(termino)
-  )
+  return productos.value.filter(p => {
+    const idCoincide = (p.id ?? p.producto_id).toString().includes(termino)
+    const codigoCoincide = p.codigo ? p.codigo.toLowerCase().includes(termino) : false
+    const nombreCoincide = p.nombre.toLowerCase().includes(termino)
+    return idCoincide || codigoCoincide || nombreCoincide
+  })
 })
 
 function seleccionarProducto(producto: Producto) {
-  if (productoSeleccionado.value?.producto_id === producto.producto_id) {
-    productoSeleccionado.value = null // Si vuelve a hacer click, deselecciona
+  const prodId = producto.id ?? producto.producto_id
+  const selId = productoSeleccionado.value?.id ?? productoSeleccionado.value?.producto_id
+
+  if (selId === prodId) {
+    productoSeleccionado.value = null
   } else {
     productoSeleccionado.value = producto
   }
@@ -45,40 +64,46 @@ function cerrarModalReponer() {
   mostrarModalReponer.value = false
 }
 
-function confirmarReposicion(datos: { producto_id: number; cantidad: number; observacion: string }) {
-  const prod = productos.value.find(p => p.producto_id === datos.producto_id)
+async function confirmarReposicion(datos: {
+  producto_id: number
+  proveedor_id: number
+  cantidad: number
+  precio_unitario: number
+  observacion: string
+}) {
+  const prod = productos.value.find(p => (p.id ?? p.producto_id) === datos.producto_id)
   if (!prod) return
 
-  // 1. Actualiza el stock en la entidad Producto (PUT)
-  prod.stockactual += datos.cantidad
+  try {
+    const hoy = new Date().toISOString().split('T')[0]
 
-  // 2. Registra el movimiento en el inventario (POST)
-  const nuevoMovimientoId = movimientos.value.length > 0
-    ? Math.max(...movimientos.value.map(m => m.movimientoinventario_id)) + 1
-    : 1
+    // Emite la Orden de Compra formal al módulo Compras (POST /api/compras/ordenes-compra/)
+    await crearOrdenCompra({
+      cabecera: {
+        proveedor_id: datos.proveedor_id,
+        fecha: hoy
+      } as any,
+      detalles: [
+        {
+          producto_id: datos.producto_id,
+          cantidad: datos.cantidad,
+          preciounitario: datos.precio_unitario
+        } as any
+      ]
+    })
 
-  const hoy = new Date().toISOString().split('T')[0]
-
-  const nuevoMovimiento: MovimientoInventario = {
-    movimientoinventario_id: nuevoMovimientoId,
-    producto_id: prod.producto_id,
-    usuario_id: 1,
-    tipo: 'Ingreso',
-    cantidad: datos.cantidad,
-    fecha: hoy,
-    observacion: datos.observacion
+    mensajeExito.value = `Orden de compra creada con éxito para "${prod.nombre}" (${datos.cantidad} un.). Quedó registrada en Compras para su aprobación.`
+    productoSeleccionado.value = null
+    cerrarModalReponer()
+  } catch (error) {
+    console.error('Error al emitir la orden de compra:', error)
+    mensajeError.value = 'No se pudo generar la orden de compra. Verifique la conexión con el servidor.'
   }
-
-  movimientos.value.unshift(nuevoMovimiento)
-
-  mensajeExito.value = `Se ingresaron ${datos.cantidad} un. a "${prod.nombre}". Stock final: ${prod.stockactual} un.`
-  
-  // Limpia la selección activa tras reponer
-  productoSeleccionado.value = null
 
   setTimeout(() => {
     mensajeExito.value = ''
-  }, 4500)
+    mensajeError.value = ''
+  }, 5000)
 }
 </script>
 
@@ -103,15 +128,18 @@ function confirmarReposicion(datos: { producto_id: number; cantidad: number; obs
           </svg>
           <span>Reponer Stock</span>
           <span v-if="productoSeleccionado" class="badge bg-light text-dark ms-1">
-            #{{ productoSeleccionado.producto_id }}
+            #{{ productoSeleccionado.codigo || (productoSeleccionado.id ?? productoSeleccionado.producto_id) }}
           </span>
         </button>
       </div>
     </div>
 
-    <!-- Alerta de éxito -->
+    <!-- Alertas -->
     <div v-if="mensajeExito" class="alert alert-success small py-2 mb-3" role="status">
       {{ mensajeExito }}
+    </div>
+    <div v-if="mensajeError" class="alert alert-danger small py-2 mb-3" role="status">
+      {{ mensajeError }}
     </div>
 
     <!-- Barra de búsqueda -->
@@ -158,20 +186,22 @@ function confirmarReposicion(datos: { producto_id: number; cantidad: number; obs
           <tbody>
             <tr
               v-for="producto in productosFiltrados"
-              :key="producto.producto_id"
+              :key="producto.id ?? producto.producto_id"
               class="fila-producto"
-              :class="{ 'fila-seleccionada': productoSeleccionado?.producto_id === producto.producto_id }"
+              :class="{ 'fila-seleccionada': (productoSeleccionado?.id ?? productoSeleccionado?.producto_id) === (producto.id ?? producto.producto_id) }"
               @click="seleccionarProducto(producto)"
             >
               <td class="ps-3">
                 <input
                   type="radio"
                   class="form-check-input"
-                  :checked="productoSeleccionado?.producto_id === producto.producto_id"
+                  :checked="(productoSeleccionado?.id ?? productoSeleccionado?.producto_id) === (producto.id ?? producto.producto_id)"
                   @click.stop="seleccionarProducto(producto)"
                 />
               </td>
-              <td class="font-monospace fw-bold text-muted">#{{ producto.producto_id }}</td>
+              <td class="font-monospace fw-bold text-muted">
+                {{ producto.codigo || `#${producto.id ?? producto.producto_id}` }}
+              </td>
               <td>
                 <div class="fw-semibold text-dark">{{ producto.nombre }}</div>
                 <div class="text-muted small text-truncate" style="max-width: 380px;">
@@ -206,7 +236,8 @@ function confirmarReposicion(datos: { producto_id: number; cantidad: number; obs
             </tr>
             <tr v-if="productosFiltrados.length === 0">
               <td colspan="6" class="text-center py-4 text-muted">
-                No se encontraron productos coincidentes.
+                <span v-if="cargando">Cargando productos del inventario...</span>
+                <span v-else>No se encontraron productos coincidentes.</span>
               </td>
             </tr>
           </tbody>

@@ -65,3 +65,16 @@ export async function obtenerFacturasCompra(): Promise<FacturaCompra[]> {
     tipo: f.tipo, fecha: f.fecha, total: Number(f.total), subtotal: Number(f.subtotal), impuesto: Number(f.impuestos)
   }))
 }
+
+export interface ProveedorAPI {
+  proveedor_id: number
+  nombre: string
+  apellido: string
+  email: string
+  telefono: string
+  cuit: string
+  direccion: string
+  productos: number[]
+}
+
+export const obtenerProveedores = () => obtenerTodasLasPaginas<ProveedorAPI>('/compras/proveedores/')
