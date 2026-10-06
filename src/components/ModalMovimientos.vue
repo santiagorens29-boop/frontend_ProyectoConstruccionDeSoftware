@@ -25,6 +25,26 @@ function cerrar() {
   expandido.value = false
   emit('cerrar')
 }
+
+function esIngreso(tipo: string): boolean {
+  return tipo === 'Ingreso' || tipo === 'ENTRADA' || tipo === 'DEVOLUCION'
+}
+
+function esEgreso(tipo: string): boolean {
+  return tipo === 'Egreso' || tipo === 'SALIDA'
+}
+
+function obtenerClaseBadge(tipo: string): string {
+  if (esIngreso(tipo)) return 'bg-success'
+  if (esEgreso(tipo)) return 'bg-danger'
+  return 'bg-warning text-dark'
+}
+
+function formatearCantidad(tipo: string, cantidad: number): string {
+  if (esIngreso(tipo)) return `+${cantidad}`
+  if (esEgreso(tipo)) return `-${cantidad}`
+  return `${cantidad}`
+}
 </script>
 
 <template>
@@ -61,19 +81,12 @@ function cerrar() {
                   <tr v-for="mov in movimientosVisibles" :key="mov.movimientoinventario_id">
                     <td class="small">{{ mov.fecha }}</td>
                     <td>
-                      <span 
-                        class="badge" 
-                        :class="{
-                          'bg-success': mov.tipo === 'Ingreso',
-                          'bg-danger': mov.tipo === 'Egreso',
-                          'bg-warning text-dark': mov.tipo === 'Ajuste'
-                        }"
-                      >
+                      <span class="badge" :class="obtenerClaseBadge(mov.tipo)">
                         {{ mov.tipo }}
                       </span>
                     </td>
                     <td class="fw-semibold">
-                      {{ mov.tipo === 'Ingreso' ? `+${mov.cantidad}` : (mov.tipo === 'Egreso' ? `-${mov.cantidad}` : mov.cantidad) }} un.
+                      {{ formatearCantidad(mov.tipo, mov.cantidad) }} un.
                     </td>
                     <td class="text-secondary small">{{ mov.observacion }}</td>
                   </tr>

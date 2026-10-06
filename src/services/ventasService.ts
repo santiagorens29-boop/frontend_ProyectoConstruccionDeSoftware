@@ -1,5 +1,7 @@
+import axios from 'axios'
 import api from '../api/clienteAxios'
-import type { Cliente } from '../types/cliente'
+import { mensajeErrorApi } from '../utils/erroresApi'
+import type { Cliente, NuevoCliente } from '../types/cliente'
 import type { ProductoVenta } from '../types/venta'
 import type { EstadoVenta, VentaHistorial } from '../types/devolucion'
 
@@ -116,4 +118,126 @@ export async function obtenerOrdenesVenta(): Promise<VentaHistorial[]> {
       cantidadVendida: i.cantidad,
     })),
   }))
+}
+
+// ---------- Sesión y mensajes de error ----------
+function exigirSesion() {
+  if (!localStorage.getItem('access_token')) {
+    throw new Error('No hay sesión iniciada. Volvé a iniciar sesión.')
+  }
+}
+
+// Todos los errores se muestran con el mismo formato: "Error: <detalle>".
+// Si el token venció (401) se cierra la sesión y se vuelve al login.
+export function textoError(err: unknown): string {
+  if (axios.isAxiosError(err) && err.response?.status === 401) {
+    localStorage.removeItem('access_token')
+    localStorage.removeItem('refresh_token')
+    setTimeout(() => window.location.reload(), 2500)
+  }
+  return `Error: ${mensajeErrorApi(err)}`
+}
+
+// ---------- Clientes: buscar por CUIL (GET), crear (POST) y editar (PUT) ----------
+export async function buscarClientePorCuil(cuil: string): Promise<Cliente | null> {
+  const { data } = await api.get(RUTA_CLIENTES, { params: { search: cuil } })
+  const lista = (Array.isArray(data) ? data : (data?.results ?? [])) as ClienteApi[]
+  const encontrado = lista.find((c) => c.cuil === cuil)
+  if (encontrado) return clienteDesdeApi(encontrado)
+  // Si el filtro del servidor no busca por CUIL, se revisa la lista completa
+  const todos = await obtenerClientes()
+  return todos.find((c) => c.cuil === cuil) ?? null
+}
+
+function clienteHaciaApi(c: NuevoCliente) {
+  return {
+    nombre: c.nombre,
+    telefono: c.telefono || null,
+    email: c.email || null,
+    direccion: c.direccion || null,
+    cuil: c.cuil || null,
+    condicion_iva: c.condicion_iva || null,
+    estado: c.estado === 'Activo' ? 'AC' : 'OF', // la baja es lógica: nunca se borra el cliente
+  }
+}
+
+export async function crearCliente(datos: NuevoCliente): Promise<Cliente> {
+  exigirSesion()
+  const { data } = await api.post<ClienteApi>(RUTA_CLIENTES, clienteHaciaApi(datos))
+  return clienteDesdeApi(data)
+}
+
+export async function actualizarCliente(cliente: Cliente): Promise<Cliente> {
+  exigirSesion()
+  const { data } = await api.put<ClienteApi>(`${RUTA_CLIENTES}${cliente.cliente_id}/`, clienteHaciaApi(cliente))
+  return clienteDesdeApi(data)
+}
+
+// ---------- Generar orden de venta (POST) ----------
+const FORMA_PAGO: Record<string, string> = {
+  Efectivo: 'EFECTIVO',
+  'Tarjeta de débito': 'DEBITO',
+  'Tarjeta de crédito': 'CREDITO',
+  Transferencia: 'TRANSFERENCIA',
+}
+
+const TIPO_COMPROBANTE: Record<string, string> = {
+  'Factura A': 'FACTURA_A',
+  'Factura B': 'FACTURA_B',
+  'Factura C': 'FACTURA_C',
+  'Nota de venta': 'NOTA_VENTA',
+}
+
+export interface DatosOrdenVenta {
+  clienteId: number
+  metodoPago: string
+  tipoComprobante: string
+  items: { productoId: number; cantidad: number }[]
+}
+
+export async function crearOrdenVenta(datos: DatosOrdenVenta): Promise<{ id: number; total: number }> {
+  exigirSesion()
+  const { data } = await api.post<{ id: number; total: string | number }>(RUTA_ORDENES, {
+    cliente: datos.clienteId,
+    forma_pago: FORMA_PAGO[datos.metodoPago],
+    tipo_comprobante: TIPO_COMPROBANTE[datos.tipoComprobante] ?? null,
+    detalles: datos.items.map((i) => ({ producto: i.productoId, cantidad: i.cantidad })),
+  })
+  return { id: data.id, total: Number(data.total) }
+}
+
+// ---------- Devoluciones: anular (POST) y nota de crédito (POST) ----------
+export async function anularOrdenVenta(ordenId: number, motivo: string, detalle: string): Promise<void> {
+  exigirSesion()
+  await api.post('/ventas/anulaciones/', {
+    orden_venta: ordenId,
+    motivo,
+    detalle: detalle.trim() || null,
+  })
+}
+
+const DESTINO_DEVOLUCION: Record<string, string> = {
+  'Stock disponible': 'STOCK_DISPONIBLE',
+  'Producto dañado (baja)': 'PRODUCTO_DANADO',
+}
+
+export interface DatosNotaCredito {
+  ordenId: number
+  monto: number
+  saldoAFavor: boolean
+  items: { productoId: number; cantidad: number; destino: string }[]
+}
+
+export async function crearNotaCredito(datos: DatosNotaCredito): Promise<void> {
+  exigirSesion()
+  await api.post('/ventas/notas-credito/', {
+    orden_venta: datos.ordenId,
+    monto: datos.monto.toFixed(2),
+    saldo_a_favor: datos.saldoAFavor,
+    detalles: datos.items.map((i) => ({
+      producto: i.productoId,
+      cantidad_devuelta: i.cantidad,
+      destino: DESTINO_DEVOLUCION[i.destino],
+    })),
+  })
 }

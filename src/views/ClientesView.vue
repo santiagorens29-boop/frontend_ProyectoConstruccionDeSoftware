@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { type Cliente, type NuevoCliente } from '../types/cliente'
-import { obtenerClientes } from '../services/ventasService'
+import { obtenerClientes, crearCliente, actualizarCliente, textoError } from '../services/ventasService'
 import ModalCliente from '../components/ModalCliente.vue'
 
 const listaClientes = ref<Cliente[]>([])
@@ -65,25 +65,24 @@ function cerrarModal() {
   clienteParaEditar.value = null
 }
 
-function guardarCliente(datos: Cliente | NuevoCliente) {
-  if ('cliente_id' in datos && datos.cliente_id) {
-    const index = listaClientes.value.findIndex((c) => c.cliente_id === datos.cliente_id)
-    if (index !== -1) {
-      listaClientes.value[index] = datos as Cliente
+async function guardarCliente(datos: Cliente | NuevoCliente) {
+  try {
+    if ('cliente_id' in datos && datos.cliente_id) {
+      // Editar: PUT
+      const actualizado = await actualizarCliente(datos as Cliente)
+      const index = listaClientes.value.findIndex((c) => c.cliente_id === actualizado.cliente_id)
+      if (index !== -1) listaClientes.value[index] = actualizado
+      clienteSeleccionado.value = actualizado
+    } else {
+      // Crear: POST
+      const nuevo = await crearCliente(datos as NuevoCliente)
+      listaClientes.value.push(nuevo)
     }
-    clienteSeleccionado.value = datos as Cliente
-  } else {
-    const nuevoId = listaClientes.value.length > 0
-      ? Math.max(...listaClientes.value.map((c) => c.cliente_id)) + 1
-      : 1
-
-    const nuevo: Cliente = {
-      cliente_id: nuevoId,
-      ...datos,
-    }
-    listaClientes.value.push(nuevo)
+    cerrarModal()
+  } catch (err) {
+    console.error(err)
+    alert(textoError(err))
   }
-  cerrarModal()
 }
 </script>
 
