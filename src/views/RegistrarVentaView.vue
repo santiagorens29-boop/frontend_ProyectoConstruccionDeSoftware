@@ -1,8 +1,33 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { CLIENTES_MOCK, type Cliente } from '../types/cliente'
-import { PRODUCTOS_MOCK, type Producto } from '../types/producto'
-import { METODOS_PAGO, IVA_PORCENTAJE, type ItemVenta } from '../types/venta'
+import { ref, computed, onMounted } from 'vue'
+import type { Cliente } from '../types/cliente'
+import { METODOS_PAGO, IVA_PORCENTAJE, type ItemVenta, type ProductoVenta } from '../types/venta'
+import {
+  obtenerClientes,
+  obtenerProductosVenta,
+  buscarClientePorCuil,
+  crearOrdenVenta,
+  textoError,
+} from '../services/ventasService'
+
+// --- Datos que vienen del backend ---
+const clientesRegistrados = ref<Cliente[]>([])
+const productosDisponibles = ref<ProductoVenta[]>([])
+const errorCarga = ref('')
+
+async function cargarDatos() {
+  try {
+    ;[clientesRegistrados.value, productosDisponibles.value] = await Promise.all([
+      obtenerClientes(),
+      obtenerProductosVenta(),
+    ])
+  } catch (err) {
+    console.error(err)
+    errorCarga.value = textoError(err)
+  }
+}
+
+onMounted(cargarDatos)
 
 // --- Búsqueda de cliente por CUIL ---
 const cuilBuscado = ref('')
@@ -18,11 +43,18 @@ function limpiarCuilBuscado() {
 // La lupa se habilita recién cuando el CUIL está completo
 const cuilCompleto = computed(() => cuilBuscado.value.length === 11)
 
-function buscarCliente() {
+// Búsqueda por CUIL mediante GET al backend
+async function buscarCliente() {
   if (!cuilCompleto.value) return
-  const encontrado = CLIENTES_MOCK.find((c) => c.cuil === cuilBuscado.value)
-  clienteEncontrado.value = encontrado ?? null
-  busquedaSinResultado.value = !encontrado
+  try {
+    const encontrado = await buscarClientePorCuil(cuilBuscado.value)
+    clienteEncontrado.value = encontrado
+    busquedaSinResultado.value = !encontrado
+  } catch (err) {
+    console.error(err)
+    clienteEncontrado.value = null
+    alert(textoError(err))
+  }
 }
 
 // El tipo de comprobante lo define el sistema según la condición IVA del cliente
@@ -48,13 +80,13 @@ const busquedaProducto = ref('')
 const mostrarSugerencias = ref(false)
 
 // Lista de coincidencias en vivo, a medida que se escribe
-const sugerencias = computed<Producto[]>(() => {
+const sugerencias = computed<ProductoVenta[]>(() => {
   const termino = busquedaProducto.value.trim().toLowerCase()
   if (!termino) return []
-  return PRODUCTOS_MOCK.filter((p) => p.nombre.toLowerCase().includes(termino)).slice(0, 6)
+  return productosDisponibles.value.filter((p) => p.nombre.toLowerCase().includes(termino)).slice(0, 6)
 })
 
-function agregarProducto(producto: Producto) {
+function agregarProducto(producto: ProductoVenta) {
   const existente = items.value.find((i) => i.productoId === producto.producto_id)
   if (existente) {
     existente.cantidad += 1
@@ -92,9 +124,15 @@ const total = computed(() => subtotal.value + iva.value)
 // --- Método de pago ---
 const metodoPago = ref(METODOS_PAGO[0])
 
-function generarOrdenVenta() {
+const guardando = ref(false)
+
+async function generarOrdenVenta() {
   if (!clienteEncontrado.value) {
     alert('Error: debe seleccionar un cliente para generar la orden de venta.')
+    return
+  }
+  if (clienteEncontrado.value.estado !== 'Activo') {
+    alert('Error: el cliente está dado de baja y no se le puede generar una orden de venta.')
     return
   }
   if (items.value.length === 0) {
@@ -105,13 +143,26 @@ function generarOrdenVenta() {
   // La fecha se toma automáticamente en el momento de generar la orden
   fecha.value = fechaDeHoy()
 
-  // Acá, cuando el backend esté listo, se reemplaza por:
-  // await api.post('/ventas/ordenes-venta/', { clienteId: ..., items: ..., total: total.value })
-  alert(`Orden de venta generada (simulada): Total $${total.value.toLocaleString('es-AR')}`)
+  guardando.value = true
+  try {
+    const orden = await crearOrdenVenta({
+      clienteId: clienteEncontrado.value.cliente_id,
+      metodoPago: metodoPago.value,
+      tipoComprobante: tipoComprobante.value,
+      items: items.value.map((i) => ({ productoId: i.productoId, cantidad: i.cantidad })),
+    })
+    alert(`Orden de venta N° ${orden.id} generada. Total $${orden.total.toLocaleString('es-AR')}`)
 
-  items.value = []
-  clienteEncontrado.value = null
-  cuilBuscado.value = ''
+    items.value = []
+    clienteEncontrado.value = null
+    cuilBuscado.value = ''
+    await cargarDatos() // el stock cambió: se vuelve a pedir la lista de productos
+  } catch (err) {
+    console.error(err)
+    alert(textoError(err))
+  } finally {
+    guardando.value = false
+  }
 }
 </script>
 
@@ -121,6 +172,8 @@ function generarOrdenVenta() {
       <h3 class="fw-bold mb-0 text-dark">Generar orden de venta</h3>
       <p class="text-muted small mb-0">Nueva orden de venta</p>
     </div>
+
+    <div v-if="errorCarga" class="alert alert-danger">{{ errorCarga }}</div>
 
     <!-- Encabezado -->
     <div class="card shadow-sm border-0 mb-4">
@@ -274,7 +327,7 @@ function generarOrdenVenta() {
               <option v-for="m in METODOS_PAGO" :key="m" :value="m">{{ m }}</option>
             </select>
 
-            <button class="btn btn-coralon w-100 fw-semibold" type="button" @click="generarOrdenVenta">
+            <button class="btn btn-coralon w-100 fw-semibold" type="button" :disabled="guardando" @click="generarOrdenVenta">
               Generar orden de venta
             </button>
           </div>

@@ -1,9 +1,27 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { CLIENTES_MOCK, type Cliente, type NuevoCliente } from '../types/cliente'
+import { ref, computed, onMounted } from 'vue'
+import { type Cliente, type NuevoCliente } from '../types/cliente'
+import { obtenerClientes, crearCliente, actualizarCliente, textoError } from '../services/ventasService'
 import ModalCliente from '../components/ModalCliente.vue'
 
-const listaClientes = ref<Cliente[]>([...CLIENTES_MOCK])
+const listaClientes = ref<Cliente[]>([])
+const cargando = ref(false)
+const error = ref('')
+
+async function cargarClientes() {
+  cargando.value = true
+  error.value = ''
+  try {
+    listaClientes.value = await obtenerClientes()
+  } catch (err) {
+    console.error(err)
+    error.value = 'Error: no se pudieron cargar los clientes. Verificá que el servidor esté disponible.'
+  } finally {
+    cargando.value = false
+  }
+}
+
+onMounted(cargarClientes)
 const filtroBusqueda = ref('')
 const clienteSeleccionado = ref<Cliente | null>(null)
 
@@ -47,25 +65,24 @@ function cerrarModal() {
   clienteParaEditar.value = null
 }
 
-function guardarCliente(datos: Cliente | NuevoCliente) {
-  if ('cliente_id' in datos && datos.cliente_id) {
-    const index = listaClientes.value.findIndex((c) => c.cliente_id === datos.cliente_id)
-    if (index !== -1) {
-      listaClientes.value[index] = datos as Cliente
+async function guardarCliente(datos: Cliente | NuevoCliente) {
+  try {
+    if ('cliente_id' in datos && datos.cliente_id) {
+      // Editar: PUT
+      const actualizado = await actualizarCliente(datos as Cliente)
+      const index = listaClientes.value.findIndex((c) => c.cliente_id === actualizado.cliente_id)
+      if (index !== -1) listaClientes.value[index] = actualizado
+      clienteSeleccionado.value = actualizado
+    } else {
+      // Crear: POST
+      const nuevo = await crearCliente(datos as NuevoCliente)
+      listaClientes.value.push(nuevo)
     }
-    clienteSeleccionado.value = datos as Cliente
-  } else {
-    const nuevoId = listaClientes.value.length > 0
-      ? Math.max(...listaClientes.value.map((c) => c.cliente_id)) + 1
-      : 1
-
-    const nuevo: Cliente = {
-      cliente_id: nuevoId,
-      ...datos,
-    }
-    listaClientes.value.push(nuevo)
+    cerrarModal()
+  } catch (err) {
+    console.error(err)
+    alert(textoError(err))
   }
-  cerrarModal()
 }
 </script>
 
@@ -124,8 +141,12 @@ function guardarCliente(datos: Cliente | NuevoCliente) {
       </div>
     </div>
 
+    <!-- Estado de carga / error -->
+    <div v-if="cargando" class="text-center py-5 text-muted">Cargando clientes...</div>
+    <div v-else-if="error" class="alert alert-danger">{{ error }}</div>
+
     <!-- Tabla -->
-    <div class="card shadow-sm border-0 overflow-hidden">
+    <div v-else class="card shadow-sm border-0 overflow-hidden">
       <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
           <thead class="table-dark-custom">

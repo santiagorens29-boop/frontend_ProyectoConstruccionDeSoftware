@@ -1,9 +1,27 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { VENTAS_MOCK, DESTINOS_DEVOLUCION, type VentaHistorial } from '../types/devolucion'
+import { ref, computed, onMounted } from 'vue'
+import { DESTINOS_DEVOLUCION, type VentaHistorial } from '../types/devolucion'
+import { obtenerOrdenesVenta, anularOrdenVenta, crearNotaCredito, textoError } from '../services/ventasService'
 import ModalAnulacion from '../components/ModalAnulacion.vue'
 
-const ventas = ref<VentaHistorial[]>([...VENTAS_MOCK])
+const ventas = ref<VentaHistorial[]>([])
+const cargando = ref(false)
+const error = ref('')
+
+async function cargarVentas() {
+  cargando.value = true
+  error.value = ''
+  try {
+    ventas.value = await obtenerOrdenesVenta()
+  } catch (err) {
+    console.error(err)
+    error.value = textoError(err)
+  } finally {
+    cargando.value = false
+  }
+}
+
+onMounted(cargarVentas)
 const busqueda = ref('')
 
 const ventasFiltradas = computed(() => {
@@ -28,10 +46,15 @@ function cerrarModalAnular() {
   ventaAAnular.value = null
 }
 
-function confirmarAnulacion(datos: { ventaId: number; motivo: string; detalle: string }) {
-  const venta = ventas.value.find((v) => v.id === datos.ventaId)
-  if (venta) venta.estado = 'Anulada'
-  cerrarModalAnular()
+async function confirmarAnulacion(datos: { ventaId: number; motivo: string; detalle: string }) {
+  try {
+    await anularOrdenVenta(datos.ventaId, datos.motivo, datos.detalle)
+    cerrarModalAnular()
+    await cargarVentas() // el estado y el stock los define el backend
+  } catch (err) {
+    console.error(err)
+    alert(textoError(err))
+  }
 }
 
 // --- Nota de crédito (devolución) ---
@@ -70,18 +93,48 @@ const montoAReembolsar = computed(() => {
   }, 0)
 })
 
-function generarNotaCredito() {
+const guardandoNota = ref(false)
+
+async function generarNotaCredito() {
   if (!ventaParaDevolver.value) return
   if (itemsSeleccionadosCount.value === 0) {
-    alert('Seleccioná al menos un ítem para devolver')
+    alert('Error: seleccioná al menos un ítem para devolver.')
     return
   }
 
-  const venta = ventas.value.find((v) => v.id === ventaParaDevolver.value!.id)
-  if (venta) venta.estado = 'Devolución parcial'
+  const items = ventaParaDevolver.value.items
+    .filter((i) => itemsSeleccionados.value[i.productoId]?.seleccionado)
+    .map((i) => ({
+      productoId: i.productoId,
+      cantidadVendida: i.cantidadVendida,
+      nombre: i.nombre,
+      cantidad: itemsSeleccionados.value[i.productoId]!.cantidad,
+      destino: itemsSeleccionados.value[i.productoId]!.destino,
+    }))
 
-  alert(`Nota de crédito generada (simulada): $${montoAReembolsar.value.toLocaleString('es-AR')}`)
-  ventaParaDevolver.value = null
+  const invalido = items.find((i) => !Number.isInteger(i.cantidad) || i.cantidad < 1 || i.cantidad > i.cantidadVendida)
+  if (invalido) {
+    alert(`Error: la cantidad a devolver de "${invalido.nombre}" debe estar entre 1 y ${invalido.cantidadVendida}.`)
+    return
+  }
+
+  guardandoNota.value = true
+  try {
+    await crearNotaCredito({
+      ordenId: ventaParaDevolver.value.id,
+      monto: montoAReembolsar.value,
+      saldoAFavor: dejarComoSaldo.value,
+      items: items.map((i) => ({ productoId: i.productoId, cantidad: i.cantidad, destino: i.destino })),
+    })
+    alert(`Nota de crédito generada: $${montoAReembolsar.value.toLocaleString('es-AR')}`)
+    ventaParaDevolver.value = null
+    await cargarVentas()
+  } catch (err) {
+    console.error(err)
+    alert(textoError(err))
+  } finally {
+    guardandoNota.value = false
+  }
 }
 </script>
 
@@ -152,7 +205,13 @@ function generarNotaCredito() {
                 </button>
               </td>
             </tr>
-            <tr v-if="ventasFiltradas.length === 0">
+            <tr v-if="cargando">
+              <td colspan="6" class="text-center text-muted py-4">Cargando historial de ventas...</td>
+            </tr>
+            <tr v-else-if="error">
+              <td colspan="6" class="text-center text-danger py-4">{{ error }}</td>
+            </tr>
+            <tr v-else-if="ventasFiltradas.length === 0">
               <td colspan="6" class="text-center text-muted py-4">No se encontraron ventas.</td>
             </tr>
           </tbody>
@@ -243,7 +302,7 @@ function generarNotaCredito() {
               <label class="form-check-label" for="saldoFavor">Dejar como saldo a favor del cliente</label>
             </div>
 
-            <button class="btn btn-coralon w-100 fw-semibold" type="button" @click="generarNotaCredito">
+            <button class="btn btn-coralon w-100 fw-semibold" type="button" :disabled="guardandoNota" @click="generarNotaCredito">
               📄 Generar nota de crédito
             </button>
           </div>
