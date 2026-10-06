@@ -1,9 +1,13 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import type { FacturaApi } from '../types/finanzasApi'
-import type { OrdenComercial } from '../types/finanzas'
+import type { OrdenComercial, OrdenDetalleItem } from '../types/finanzas'
 import { obtenerFacturas, crearFactura } from '../services/facturasService'
-import { obtenerOrdenesCompra, esOrdenCancelada } from '../services/ordenesParaFacturarService'
+import {
+  obtenerOrdenesCompra,
+  obtenerOrdenesVenta,
+  esOrdenCancelada
+} from '../services/ordenesParaFacturarService'
 import { mensajeDeError } from '../services/finanzasApi'
 import { formatoFecha, formatoMoneda } from '../utils/formatoFinanzas'
 import ModalDetalleFactura from '../components/ModalDetalleFactura.vue'
@@ -15,6 +19,7 @@ const TASA_IVA = 0.21
 // Datos que vienen del backend
 const facturas = ref<FacturaApi[]>([])
 const ordenesCompra = ref<OrdenComercial[]>([])
+const ordenesVenta = ref<OrdenComercial[]>([])
 
 const cargando = ref(false)
 const facturando = ref(false)
@@ -29,14 +34,24 @@ const ordenSeleccionada = ref<OrdenComercial | null>(null)
 const mostrarModalFactura = ref(false)
 const mostrarModalOrden = ref(false)
 
-// Una orden de compra se puede facturar si no está cancelada y ninguna factura la referencia.
+// Una orden se puede facturar si no está cancelada/anulada y ninguna factura la referencia.
 const ordenesCompraFacturadas = computed(
   () => new Set(facturas.value.flatMap(f => (f.orden_compra_id === null ? [] : [f.orden_compra_id])))
+)
+
+const ordenesVentaFacturadas = computed(
+  () => new Set(facturas.value.flatMap(f => (f.orden_venta_id === null ? [] : [f.orden_venta_id])))
 )
 
 const ordenesCompraPendientes = computed(() =>
   ordenesCompra.value.filter(
     o => !esOrdenCancelada(o) && !ordenesCompraFacturadas.value.has(o.orden_id)
+  )
+)
+
+const ordenesVentaPendientes = computed(() =>
+  ordenesVenta.value.filter(
+    o => !esOrdenCancelada(o) && !ordenesVentaFacturadas.value.has(o.orden_id)
   )
 )
 
@@ -48,9 +63,11 @@ async function cargarDatos() {
   cargando.value = true
   mensajeError.value = ''
 
-  const [resFacturas, resOrdenes] = await Promise.allSettled([
+  // Cada fuente carga por separado: si una falla, las otras se muestran igual.
+  const [resFacturas, resCompras, resVentas] = await Promise.allSettled([
     obtenerFacturas(),
-    obtenerOrdenesCompra()
+    obtenerOrdenesCompra(),
+    obtenerOrdenesVenta()
   ])
 
   const errores: string[] = []
@@ -63,15 +80,30 @@ async function cargarDatos() {
     errores.push(mensajeDeError(resFacturas.reason))
   }
 
-  if (resOrdenes.status === 'fulfilled') {
-    ordenesCompra.value = resOrdenes.value
+  if (resCompras.status === 'fulfilled') {
+    ordenesCompra.value = resCompras.value
   } else {
     ordenesCompra.value = []
-    ordenSeleccionada.value = null
-    errores.push(mensajeDeError(resOrdenes.reason))
+    errores.push(mensajeDeError(resCompras.reason))
   }
 
-  // Si fallaron las dos por la misma causa (por ejemplo sin token) se muestra una sola vez.
+  if (resVentas.status === 'fulfilled') {
+    ordenesVenta.value = resVentas.value
+  } else {
+    ordenesVenta.value = []
+    errores.push(mensajeDeError(resVentas.reason))
+  }
+
+  // Si la orden seleccionada ya no está en ninguna lista, se limpia la selección.
+  const seleccion = ordenSeleccionada.value
+  if (seleccion) {
+    const lista = seleccion.tipo_orden === 'Venta' ? ordenesVenta.value : ordenesCompra.value
+    if (!lista.some(o => o.orden_id === seleccion.orden_id)) {
+      ordenSeleccionada.value = null
+    }
+  }
+
+  // Si fallaron varias por la misma causa (por ejemplo sin token) se muestra una sola vez.
   mensajeError.value = [...new Set(errores)].join(' ')
   cargando.value = false
 }
@@ -111,6 +143,21 @@ function mostrarMensajeExito(texto: string) {
   }, 4000)
 }
 
+// Las facturas de Finanzas no tienen descuento por renglón: se factura el precio
+// unitario efectivo, para que el subtotal coincida con el de la orden.
+function precioFacturable(item: OrdenDetalleItem): number {
+  return item.cantidad > 0 ? Math.round((item.subtotal / item.cantidad) * 100) / 100 : item.preciounitario
+}
+
+function numeroFactura(orden: OrdenComercial): string {
+  const relleno = String(orden.orden_id).padStart(7, '0')
+  if (orden.tipo_orden === 'Venta') {
+    // La orden de venta ya tiene su comprobante; si no, se deriva del id.
+    return orden.numero_comprobante || `FV-${relleno}`
+  }
+  return `FC-${relleno}`
+}
+
 // Acción de Facturación: POST real al backend
 async function registrarFacturaDesdeOrden() {
   const orden = ordenSeleccionada.value
@@ -121,24 +168,26 @@ async function registrarFacturaDesdeOrden() {
     return
   }
 
+  const esVenta = orden.tipo_orden === 'Venta'
+
   // El backend suma los renglones (subtotal) y le agrega los impuestos que enviamos.
-  const subtotalNeto = orden.detalles.reduce((acc, d) => acc + d.cantidad * d.preciounitario, 0)
+  const subtotalNeto = orden.detalles.reduce((acc, d) => acc + d.cantidad * precioFacturable(d), 0)
   const impuestos = Math.round(subtotalNeto * TASA_IVA * 100) / 100
 
   facturando.value = true
   mensajeError.value = ''
   try {
     const factura = await crearFactura({
-      tipo: 'COMPRA',
+      tipo: esVenta ? 'VENTA' : 'COMPRA',
       // Derivado de la orden: facturar dos veces la misma orden da error por número repetido.
-      numero: `FC-${String(orden.orden_id).padStart(7, '0')}`,
+      numero: numeroFactura(orden),
       fecha: new Date().toISOString(),
-      orden_compra_id: orden.orden_id,
+      ...(esVenta ? { orden_venta_id: orden.orden_id } : { orden_compra_id: orden.orden_id }),
       impuestos: impuestos.toFixed(2),
       detalles: orden.detalles.map(d => ({
         producto_id: d.producto_id,
         cantidad: d.cantidad,
-        precio_unitario: d.preciounitario.toFixed(2)
+        precio_unitario: precioFacturable(d).toFixed(2)
       }))
     })
 
@@ -303,13 +352,39 @@ onMounted(() => {
           </div>
         </div>
 
-        <!-- Órdenes de Venta: el backend todavía no las tiene -->
+        <!-- Tabla Órdenes de Venta -->
         <div class="card shadow-sm border-0">
           <div class="card-header bg-dark-custom text-white py-2">
             <h6 class="fw-bold mb-0 small text-uppercase letter-spacing">Órdenes de Venta (Clientes)</h6>
           </div>
-          <div class="card-body text-center py-3 text-muted small">
-            Módulo de ventas aún no disponible: todavía no hay órdenes de venta para facturar.
+          <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+              <thead class="table-light">
+                <tr>
+                  <th scope="col" class="ps-3 py-2">ID</th>
+                  <th scope="col" class="py-2">Cliente</th>
+                  <th scope="col" class="py-2">Fecha</th>
+                  <th scope="col" class="pe-3 py-2 text-end">Total</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr
+                  v-for="ov in ordenesVentaPendientes"
+                  :key="'ov-' + ov.orden_id"
+                  :class="{ 'fila-seleccionada': ordenSeleccionada?.orden_id === ov.orden_id && ordenSeleccionada?.tipo_orden === 'Venta' }"
+                  style="cursor: pointer;"
+                  @click="seleccionarOrden(ov)"
+                >
+                  <td class="ps-3 fw-bold text-muted">#{{ ov.orden_id }}</td>
+                  <td class="fw-semibold">{{ ov.entidad_nombre }}</td>
+                  <td class="text-muted small">{{ formatoFecha(ov.fecha) }}</td>
+                  <td class="pe-3 text-end fw-bold text-dark">{{ formatoMoneda(ov.total) }}</td>
+                </tr>
+                <tr v-if="!cargando && ordenesVentaPendientes.length === 0">
+                  <td colspan="4" class="text-center py-3 text-muted small">No hay órdenes de venta pendientes de facturar.</td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </div>
 

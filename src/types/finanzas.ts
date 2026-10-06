@@ -29,13 +29,16 @@ export interface FacturaCabecera {
 }
 
 // Modelo de pantalla de las órdenes que Finanzas muestra para facturar.
-// Se arma en services/ordenesParaFacturarService.ts a partir del backend de compras.
+// Se arma en services/ordenesParaFacturarService.ts a partir de los backends de
+// compras y de ventas.
 export interface OrdenDetalleItem {
   detalle_id: number
   producto_id: number
   producto_nombre: string
   cantidad: number
   preciounitario: number
+  // Descuento del renglón (solo ventas). `subtotal` ya viene con el descuento aplicado.
+  descuento?: number
   subtotal: number
 }
 
@@ -47,5 +50,7 @@ export interface OrdenComercial {
   fecha: string
   estado_nombre: string
   total: number
+  // Comprobante que la orden de venta ya tiene asignado (por ejemplo "B-0002145").
+  numero_comprobante?: string | null
   detalles: OrdenDetalleItem[]
 }
