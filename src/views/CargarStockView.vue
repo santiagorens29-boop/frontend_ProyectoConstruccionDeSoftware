@@ -108,18 +108,17 @@ async function confirmarReposicion(datos: {
 </script>
 
 <template>
-  <div class="container-fluid py-2">
-    <!-- Encabezado con Botón General de Acción -->
-    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+  <div class="container-fluid p-0">
+    <!-- Encabezado con Botón General de Acción Adaptable -->
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4 gap-3">
       <div>
         <h3 class="fw-bold mb-0 text-dark">Carga y Reposición de Stock</h3>
         <p class="text-muted small mb-0">Seleccione un producto de la tabla para gestionar su reposición</p>
       </div>
-      <div>
-        <!-- Botón único: deshabilitado si no hay producto seleccionado -->
+      <div class="w-100 w-md-auto">
         <button
           type="button"
-          class="btn btn-coralon d-flex align-items-center gap-2 px-3 fw-semibold shadow-sm"
+          class="btn btn-coralon d-flex align-items-center justify-content-center gap-2 px-3 fw-semibold shadow-sm w-100 w-md-auto"
           :disabled="!productoSeleccionado"
           @click="abrirModalReponer"
         >
@@ -142,11 +141,11 @@ async function confirmarReposicion(datos: {
       {{ mensajeError }}
     </div>
 
-    <!-- Barra de búsqueda -->
-    <div class="card shadow-sm border-0 mb-4">
+    <!-- Barra de búsqueda adaptada -->
+    <div class="card shadow-sm border-0 mb-4 search-card">
       <div class="card-body p-3">
         <div class="row">
-          <div class="col-md-6">
+          <div class="col-12 col-md-6 col-lg-5">
             <div class="input-group">
               <span class="input-group-text bg-white border-end-0 text-muted pe-1">
                 <svg width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
@@ -165,22 +164,22 @@ async function confirmarReposicion(datos: {
       </div>
     </div>
 
-    <!-- Tabla Principal de Stock con selección de fila -->
+    <!-- Tabla Principal de Stock con selección de fila y ocultamiento progresivo -->
     <div class="card shadow-sm border-0 overflow-hidden">
       <div class="card-header encabezado-custom text-white py-3 d-flex justify-content-between align-items-center">
         <h5 class="fw-bold mb-0 fs-6">Inventario de Mercadería</h5>
-        <span class="small text-white-50">Haga clic en una fila para seleccionarla</span>
+        <span class="small text-white-50 d-none d-sm-inline">Haga clic en una fila para seleccionarla</span>
       </div>
       <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
           <thead class="table-light">
             <tr>
-              <th scope="col" class="ps-3 py-2" style="width: 50px;">Sel.</th>
-              <th scope="col" class="py-2">Código</th>
+              <th scope="col" class="ps-3 py-2" style="width: 45px;">Sel.</th>
+              <th scope="col" class="py-2" style="width: 80px;">Código</th>
               <th scope="col" class="py-2">Producto</th>
-              <th scope="col" class="py-2 text-center">Stock Mínimo</th>
+              <th scope="col" class="py-2 text-center">Stock Mín.</th>
               <th scope="col" class="py-2 text-center">Stock Actual</th>
-              <th scope="col" class="pe-3 py-2 text-end">Estado</th>
+              <th scope="col" class="pe-3 py-2 text-end d-none d-sm-table-cell">Estado</th>
             </tr>
           </thead>
           <tbody>
@@ -204,7 +203,7 @@ async function confirmarReposicion(datos: {
               </td>
               <td>
                 <div class="fw-semibold text-dark">{{ producto.nombre }}</div>
-                <div class="text-muted small text-truncate" style="max-width: 380px;">
+                <div class="text-muted small text-truncate d-none d-md-block" style="max-width: 380px;">
                   {{ producto.descripcion }}
                 </div>
               </td>
@@ -219,7 +218,7 @@ async function confirmarReposicion(datos: {
                   {{ producto.stockactual }} un.
                 </span>
               </td>
-              <td class="pe-3 text-end">
+              <td class="pe-3 text-end d-none d-sm-table-cell">
                 <span
                   v-if="producto.stockactual <= producto.stockminreposicion"
                   class="badge bg-danger-subtle text-danger border border-danger-subtle px-2 py-1"
