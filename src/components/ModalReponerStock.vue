@@ -2,7 +2,8 @@
 import { ref, computed, watch } from 'vue'
 import type { Producto } from '../types/producto'
 import {
-  obtenerProveedores
+  obtenerProveedores,
+  type ProveedorAPI
 } from '../services/comprasService'
 
 const props = defineProps<{
@@ -21,7 +22,7 @@ const emit = defineEmits<{
   }): void
 }>()
 
-const proveedores = ref<Awaited<ReturnType<typeof obtenerProveedores>>>([])
+const proveedores = ref<ProveedorAPI[]>([])
 const cargandoProveedores = ref(false)
 const proveedorSeleccionadoId = ref<number | ''>('')
 const cantidad = ref<number>(1)

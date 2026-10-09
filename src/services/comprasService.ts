@@ -118,7 +118,9 @@ export async function obtenerFacturasCompra(): Promise<FacturaCompra[]> {
   }))
 }
 
-export interface ProveedorAPI {
+export type ProveedorAPI = Proveedor
+
+interface ProveedorRespuestaAPI {
   proveedor_id: number
   nombre: string
   apellido: string
@@ -131,7 +133,7 @@ export interface ProveedorAPI {
 }
 
 export async function obtenerProveedores(): Promise<Proveedor[]> {
-  const proveedores = await obtenerTodasLasPaginas<ProveedorAPI>('/compras/proveedores/')
+  const proveedores = await obtenerTodasLasPaginas<ProveedorRespuestaAPI>('/compras/proveedores/')
   return proveedores.map(({ producto_id, productos, ...proveedor }) => {
     const asociados = productos ?? (producto_id == null ? [] : [producto_id])
     return {
