@@ -7,6 +7,8 @@ import { RUBROS_MOCK, type Rubro } from '../types/rubro'
 interface Props {
   mostrar: boolean
   productoAEditar: Producto | null
+  guardando?: boolean
+  error?: string
 }
 
 const props = defineProps<Props>()
@@ -188,16 +190,23 @@ function guardarProducto() {
               </div>
             </div>
 
+            <!-- Error del backend -->
+            <div v-if="props.error" class="alert alert-danger mx-4 mb-0 py-2 small" role="alert">
+              {{ props.error }}
+            </div>
+
             <!-- Footer con Acciones -->
             <div class="modal-footer bg-light px-4 py-3 border-top">
               <button
                 type="button"
                 class="btn btn-secondary px-4"
+                :disabled="props.guardando"
                 @click="cerrarModal"
               >
                 Cancelar
               </button>
-              <button type="submit" class="btn btn-coralon px-4 fw-semibold">
+              <button type="submit" class="btn btn-coralon px-4 fw-semibold" :disabled="props.guardando">
+                <span v-if="props.guardando" class="spinner-border spinner-border-sm me-2" role="status"></span>
                 {{ productoAEditar ? 'Guardar Cambios' : 'Crear Producto' }}
               </button>
             </div>
