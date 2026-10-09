@@ -20,6 +20,12 @@ function alIniciarSesion() {
   estaAutenticado.value = true
 }
 
+function cerrarSesion() {
+  localStorage.removeItem('access_token')
+  localStorage.removeItem('refresh_token')
+  estaAutenticado.value = false
+}
+
 const moduloActivo = ref('administrativos')
 const subVistaActiva = ref<'opcion1' | 'opcion2' | 'opcion3'>('opcion1')
 
@@ -116,6 +122,7 @@ const accionesSidebar = computed<{
     <Navbar
       :modulo-activo="moduloActivo"
       @cambiar-modulo="cambiarModulo"
+      @cerrar-sesion="cerrarSesion"
     />
 
     <!-- Contenedor Responsive: flex-column en mobile, flex-lg-row en desktop -->
