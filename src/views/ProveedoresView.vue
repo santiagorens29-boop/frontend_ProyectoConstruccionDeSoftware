@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { vTextoLimpio } from '../directives/textoLimpio'
 import { ref, computed, onMounted } from 'vue'
 import type { Proveedor, NuevoProveedor } from '../types/proveedor'
 import { obtenerProveedores, crearProveedor, actualizarProveedor, relacionMultipleDisponible } from '../services/proveedoresService'
@@ -14,7 +15,6 @@ const mensajeError = ref('')
 const errorGuardado = ref('')
 const mensajeExito = ref('')
 const filtroBusqueda = ref('')
-const proveedorSeleccionado = ref<Proveedor | null>(null)
 const mostrarModal = ref(false)
 const proveedorParaEditar = ref<Proveedor | null>(null)
 const nombreProducto = (id: number) => productos.value.find(p => p.id === id)?.nombre ?? `Producto #${id}`
@@ -64,19 +64,15 @@ const proveedoresFiltrados = computed(() => {
   })
 })
 
-function seleccionarFila(proveedor: Proveedor) {
-  proveedorSeleccionado.value = proveedorSeleccionado.value?.proveedor_id === proveedor.proveedor_id ? null : proveedor
-}
-
 function abrirModalCrear() {
   proveedorParaEditar.value = null
   errorGuardado.value = ''
   mostrarModal.value = true
 }
 
-function abrirModalEditar() {
-  if (!proveedorSeleccionado.value) return
-  proveedorParaEditar.value = { ...proveedorSeleccionado.value, productos: [...proveedorSeleccionado.value.productos] }
+function abrirModalEditar(proveedor: Proveedor) {
+  if (cargando.value || guardando.value || !relacionMultipleDisponible.value) return
+  proveedorParaEditar.value = { ...proveedor, productos: [...proveedor.productos] }
   errorGuardado.value = ''
   mostrarModal.value = true
 }
@@ -89,6 +85,11 @@ function cerrarModal() {
 
 async function guardarProveedor(datos: NuevoProveedor) {
   if (guardando.value) return
+  const cuit = datos.cuit.replace(/[-\s]/g, '')
+  if (listaProveedores.value.some(proveedor => proveedor.proveedor_id !== proveedorParaEditar.value?.proveedor_id && proveedor.cuit.replace(/[-\s]/g, '') === cuit)) {
+    errorGuardado.value = 'Ya existe un proveedor con ese CUIT.'
+    return
+  }
   guardando.value = true
   errorGuardado.value = ''
   mensajeExito.value = ''
@@ -98,7 +99,6 @@ async function guardarProveedor(datos: NuevoProveedor) {
     if (id) {
       const index = listaProveedores.value.findIndex(p => p.proveedor_id === id)
       if (index !== -1) listaProveedores.value[index] = guardado
-      proveedorSeleccionado.value = guardado
     } else {
       listaProveedores.value.unshift(guardado)
     }
@@ -124,17 +124,8 @@ onMounted(cargarProveedores)
         <p class="text-muted small mb-0">Alta, consulta y edición de proveedores del corralón</p>
       </div>
 
-      <div class="d-flex gap-2">
-        <button 
-          class="btn btn-outline-coralon d-flex align-items-center gap-2 px-3 fw-semibold"
-          :disabled="!proveedorSeleccionado || cargando || !relacionMultipleDisponible"
-          @click="abrirModalEditar"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
-            <path d="M12.146.146a.5.5 0 0 1 .708 0l3 3a.5.5 0 0 1 0 .708l-10 10a.5.5 0 0 1-.168.11l-5 2a.5.5 0 0 1-.65-.65l2-5a.5.5 0 0 1 .11-.168zM11.207 2.5 13.5 4.793 14.793 3.5 12.5 1.207zm1.586 3L10.5 3.207 4 9.707V10h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.293zm-9.761 5.175-.106.106-1.528 3.821 3.821-1.528.106-.106A.5.5 0 0 1 5 12.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.468-.325"/>
-          </svg>
-          <span>Editar Seleccionado</span>
-        </button>
+      <div class="d-flex flex-wrap gap-2">
+
 
         <button 
           class="btn btn-coralon d-flex align-items-center gap-2 px-3 fw-semibold"
@@ -170,7 +161,7 @@ onMounted(cargarProveedores)
                   <path d="M11.742 10.344a6.5 6.5 0 1 0-1.397 1.398h-.001q.044.06.098.115l3.85 3.85a1 1 0 0 0 1.415-1.414l-3.85-3.85a1 1 0 0 0-.115-.1zM12 6.5a5.5 5.5 0 1 1-11 0 5.5 5.5 0 0 1 11 0"/>
                 </svg>
               </span>
-              <input
+              <input maxlength="150" v-texto-limpio
                 v-model="filtroBusqueda"
                 type="text"
                 class="form-control border-start-0 custom-search ps-2"
@@ -182,8 +173,52 @@ onMounted(cargarProveedores)
       </div>
     </div>
 
+    <section class="d-lg-none" aria-label="Proveedores" :aria-busy="cargando">
+      <div class="row g-2 mb-3">
+        <div class="col-7">
+          <label for="proveedor-mobile-campo" class="form-label small">Ordenar por</label>
+          <select id="proveedor-mobile-campo" v-model="campoOrden" class="form-select">
+            <option value="proveedor_id">ID</option><option value="nombre">Nombre</option><option value="apellido">Apellido</option>
+            <option value="productos">Productos</option><option value="email">Email</option><option value="direccion">Dirección</option>
+          </select>
+        </div>
+        <div class="col-5">
+          <label for="proveedor-mobile-sentido" class="form-label small">Sentido</label>
+          <select id="proveedor-mobile-sentido" v-model="sentidoOrden" class="form-select">
+            <option value="asc">Ascendente</option><option value="desc">Descendente</option>
+          </select>
+        </div>
+      </div>
+      <ul class="list-unstyled d-grid gap-3 mb-0">
+        <li v-for="proveedor in proveedoresFiltrados" :key="proveedor.proveedor_id">
+          <button type="button" class="proveedor-tarjeta card shadow-sm p-3 w-100 text-start"
+            :disabled="cargando || guardando || !relacionMultipleDisponible" @click="abrirModalEditar(proveedor)">
+            <span class="d-flex flex-wrap justify-content-between align-items-center gap-2 w-100 mb-2">
+              <span class="small text-muted">ID: {{ proveedor.proveedor_id }}</span>
+              <span class="badge badge-cuit font-monospace">CUIT: {{ proveedor.cuit }}</span>
+            </span>
+            <span class="fw-bold text-break">{{ proveedor.nombre }}</span>
+            <span v-if="proveedor.apellido" class="text-break">{{ proveedor.apellido }}</span>
+            <span class="d-block border-top pt-2 mt-3 w-100">
+              <span class="small text-muted d-block mb-1">Productos suministrados</span>
+              <span v-for="id in proveedor.productos" :key="id" class="d-block small text-break">#{{ id }} — {{ nombreProducto(id) }}</span>
+              <span v-if="!proveedor.productos.length" class="small text-muted">Sin productos asociados</span>
+            </span>
+            <span class="d-block border-top pt-2 mt-3 w-100 small">
+              <span class="d-block text-break"><span class="text-muted">Teléfono:</span> {{ proveedor.telefono || 'Sin teléfono' }}</span>
+              <span class="d-block text-break mt-1"><span class="text-muted">Email:</span> {{ proveedor.email || 'Sin email' }}</span>
+              <span class="d-block text-break mt-1"><span class="text-muted">Dirección:</span> {{ proveedor.direccion || 'Sin dirección' }}</span>
+            </span>
+            <span class="indicacion-seleccion small fw-semibold mt-3">Tocá para editar</span>
+          </button>
+        </li>
+      </ul>
+      <p v-if="cargando" class="text-center py-4 text-muted" role="status">Cargando proveedores…</p>
+      <p v-else-if="!mensajeError && !proveedoresFiltrados.length" class="text-center py-4 text-muted">No se encontraron proveedores que coincidan con la búsqueda.</p>
+    </section>
+
     <!-- Tabla -->
-    <div class="card shadow-sm border-0 overflow-hidden">
+    <div class="card shadow-sm border-0 overflow-hidden d-none d-lg-block">
       <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
           <thead class="table-dark-custom">
@@ -202,11 +237,10 @@ onMounted(cargarProveedores)
             <tr
               v-for="proveedor in proveedoresFiltrados"
               :key="proveedor.proveedor_id"
-              :class="{ 'fila-seleccionada': proveedorSeleccionado?.proveedor_id === proveedor.proveedor_id }"
               style="cursor: pointer;"
-              @click="seleccionarFila(proveedor)"
+              @click="abrirModalEditar(proveedor)"
             >
-              <td class="ps-3 fw-bold">{{ proveedor.proveedor_id }}</td>
+              <td class="ps-3 fw-bold"><button type="button" class="btn btn-link p-0 fw-bold" :disabled="cargando || guardando || !relacionMultipleDisponible" :aria-label="`Editar proveedor ${proveedor.nombre} ${proveedor.apellido}`" @click.stop="abrirModalEditar(proveedor)">{{ proveedor.proveedor_id }}</button></td>
               <td class="fw-semibold">{{ proveedor.nombre }}</td>
               <td>{{ proveedor.apellido }}</td>
               <td><span class="badge badge-cuit font-monospace">{{ proveedor.cuit }}</span></td>
@@ -245,6 +279,12 @@ onMounted(cargarProveedores)
 </template>
 
 <style scoped>
+.proveedor-tarjeta { border: 1px solid #e4dfdc; color: inherit; font: inherit; }
+.proveedor-tarjeta:hover:not(:disabled) { border-color: #b33e14; background-color: #fff8f4; }
+.proveedor-tarjeta:focus-visible { outline: 2px solid #b33e14; outline-offset: 3px; }
+.proveedor-tarjeta:disabled { opacity: 0.65; }
+.indicacion-seleccion { color: #b33e14; }
+
 .ordenar-columna {
   display: inline-flex;
   align-items: center;
@@ -315,12 +355,5 @@ onMounted(cargarProveedores)
   padding: 0.4em 0.6em;
 }
 
-.fila-seleccionada {
-  background-color: #fff1eb !important;
-  border-left: 4px solid #b33e14;
-}
 
-.fila-seleccionada td {
-  background-color: #fff1eb !important;
-}
 </style>

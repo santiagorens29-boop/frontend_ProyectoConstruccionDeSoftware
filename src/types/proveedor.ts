@@ -8,6 +8,7 @@ export interface Proveedor {
   cuit: string
   direccion: string
   productos: number[]
+  preciosCompra?: Record<number, number | null>
 }
 
 // Tipo para la creación (no requiere proveedor_id ya que lo genera la base de datos)
