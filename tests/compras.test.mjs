@@ -53,7 +53,7 @@ test('state update sends the server catalog ID and preserves failures', async ()
   await assert.rejects(compras.actualizarEstadoCompra(41, 19))
   assert.equal(compras.transicionPermitida('pendiente', 'recibida'), false)
   assert.equal(compras.transicionPermitida('aprobada', 'recibida'), true)
-  assert.equal(compras.transicionPermitida('aprobada', 'rechazada'), true)
+  assert.equal(compras.transicionPermitida('aprobada', 'rechazada'), false)
   assert.equal(compras.transicionPermitida('recibida', 'rechazada'), false)
 })
 test('invoices are filtered by order and translated from the accounting API', async () => {
@@ -62,4 +62,116 @@ test('invoices are filtered by order and translated from the accounting API', as
     { id: 3, orden_compra_id: 41, tipo: 'COMPRA', numero: '0003', fecha: '2026-10-01', subtotal: '21.00', impuestos: '4.41', total: '25.41' }
   ], next: null })
   assert.deepEqual(await compras.obtenerFacturasCompra(), [{ facturacabecera_id: 3, ordencompra_id: 41, tipo: 'COMPRA', numero: '0003', fecha: '2026-10-01', subtotal: 21, impuesto: 4.41, total: 25.41 }])
+})
+
+
+test('purchase workflow follows fixes-CompraProveedores, including terminal states', () => {
+  const states = ['pendiente', 'aprobada', 'rechazada', 'recibida', 'devuelto', 'contabilizado']
+  const allowed = new Set(['pendiente:aprobada', 'pendiente:rechazada', 'aprobada:recibida', 'aprobada:devuelto', 'recibida:contabilizado'])
+  for (const current of states) {
+    assert.equal(compras.estadoCompraReconocido(current), true)
+    for (const next of states) {
+      assert.equal(compras.transicionPermitida(current, next), allowed.has(current + ':' + next), current + ' -> ' + next)
+    }
+  }
+  assert.equal(compras.transicionPermitida('desconocido', 'aprobada'), false)
+  assert.equal(compras.transicionPermitida('constructor', 'aprobada'), false)
+  assert.equal(compras.estadoCompraReconocido('desconocido'), false)
+  assert.equal(compras.etiquetaEstadoCompra('aprobada'), 'Aprobado')
+  assert.equal(compras.etiquetaEstadoCompra('recibida'), 'Recibido')
+  assert.equal(compras.etiquetaEstadoCompra('rechazada'), 'Rechazado')
+})
+
+test('catalog retains server names and IDs while sorting the six states', async () => {
+  const names = ['Contabilizado', 'Devuelto', 'Recibida', 'Rechazada', 'Aprobada', 'Pendiente']
+  handler = config => response(config, { results: names.map((nombre, i) => ({ estadoordencompra_id: 20 + i, nombre })), next: null })
+  const catalog = await compras.obtenerEstadosCompra()
+  assert.deepEqual(catalog.map(item => item.nombre), [...names].reverse())
+  assert.deepEqual(catalog.map(item => item.estadoordencompra_id), [25, 24, 23, 22, 21, 20])
+  assert.equal(compras.presentarOrden({ ...orden, estado: 24 }, catalog).estado, 'aprobada')
+})
+
+test('purchase providers use supplier purchase prices, including missing and zero prices', async () => {
+  handler = config => response(config, { results: [{ proveedor_id: 12, productos: [
+    { producto_id: 5, precio_compra: '10.50' }, { producto_id: 6, precio_compra: null }, { producto_id: 7, precio_compra: '0.00' }
+  ] }], next: null })
+  assert.deepEqual(await compras.obtenerProveedores(), [{ proveedor_id: 12, productos: [5, 6, 7], preciosCompra: { 5: 10.5, 6: null, 7: 0 } }])
+})
+
+test('sending an order to finance uses the dedicated endpoint and returns the updated order', async () => {
+  handler = config => {
+    assert.equal(config.method, 'post')
+    assert.equal(config.url, '/compras/ordenes-compra/41/enviar-a-finanzas/')
+    const body = JSON.parse(config.data)
+    assert.deepEqual(Object.keys(body).sort(), ['fecha', 'impuestos', 'numero'])
+    assert.equal(body.numero, 'C-0001')
+    assert.equal(body.impuestos, '21.50')
+    assert.ok(!Number.isNaN(Date.parse(body.fecha)))
+    return response(config, { orden: { ...orden, estado: 99 }, factura: { id: 100 } })
+  }
+  assert.equal((await compras.enviarOrdenAFinanzas(41, { numero: ' C-0001 ', fecha: '2026-10-09', impuestos: 21.5 })).estado, 99)
+  handler = config => { throw new axios.AxiosError('Duplicate invoice', 'ERR_BAD_REQUEST', config, null, { status: 400 }) }
+  await assert.rejects(compras.enviarOrdenAFinanzas(41, { numero: 'C-0001', fecha: '2026-10-09', impuestos: 0 }))
+})
+
+
+test('rejection resolves catalog variants to their real ID without inventing missing states', () => {
+  for (const nombre of ['Rechazada', 'Rechazado', 'Rechazar', ' RECHAZADA ']) {
+    const catalog = [{ estadoordencompra_id: 73, nombre }]
+    assert.equal(compras.buscarEstadoCompra(catalog, 'rechazada').estadoordencompra_id, 73)
+    assert.equal(compras.presentarOrden({ ...orden, estado: 73 }, catalog).estado, 'rechazada')
+    assert.equal(compras.transicionPermitida(' Pendiente ', nombre), true)
+  }
+  assert.equal(compras.buscarEstadoCompra([{ estadoordencompra_id: 7, nombre: 'Pendiente' }], 'rechazada'), undefined)
+  assert.equal(compras.buscarEstadoCompra([
+    { estadoordencompra_id: 73, nombre: 'Rechazar' },
+    { estadoordencompra_id: 81, nombre: 'Rechazada' }
+  ], 'rechazar').estadoordencompra_id, 81)
+})
+
+
+test('legacy supplier product IDs remain selectable with catalog prices', async () => {
+  handler = config => response(config, { results: [
+    { proveedor_id: 12, productos: [5, 6] },
+    { proveedor_id: 13, producto_id: 7 },
+    { proveedor_id: 14, productos: [] }
+  ], next: null })
+  const proveedores = await compras.obtenerProveedores()
+  assert.deepEqual(proveedores.map(p => p.productos), [[5, 6], [7], []])
+  const catalogo = [{ id: 5, precio: 100 }, { id: 6, precio: 200 }, { id: 7, precio: 300 }]
+  const disponibles = catalogo.filter(p => proveedores[0].productos.includes(p.id))
+  assert.deepEqual(disponibles.map(p => compras.precioCompraProveedor(proveedores[0], p)), [100, 200])
+  assert.equal(compras.precioCompraProveedor({ productos: [5], preciosCompra: { 5: 10.5 } }, catalogo[0]), 10.5)
+  assert.equal(compras.precioCompraProveedor({ productos: [5], preciosCompra: { 5: 0 } }, catalogo[0]), 0)
+  assert.ok(Number.isNaN(compras.precioCompraProveedor({ productos: [5], preciosCompra: { 5: null } }, catalogo[0])))
+})
+
+
+test('20 demo orders have valid relationships and totals and all six states', async () => {
+  const { crearComprasMock } = await import(moduleURL('../src/mocks/comprasMock.ts'))
+  const mock = crearComprasMock()
+  const datos = mock.cargar()
+  assert.equal(datos.ordenes.length, 20)
+  assert.ok(datos.ordenes.every(o => o.ordencompra_id < 0))
+  assert.ok(datos.proveedores.every(p => p.proveedor_id < 0))
+  assert.ok(datos.productos.every(p => p.id < 0))
+  assert.ok(mock.facturas().every(f => f.facturacabecera_id < 0 && f.ordencompra_id < 0))
+  assert.equal(new Set(datos.ordenes.map(o => o.ordencompra_id)).size, 20)
+  assert.equal(new Set(datos.ordenes.map(o => o.estado)).size, 6)
+  for (const orden of datos.ordenes) {
+    assert.ok(datos.proveedores.some(p => p.proveedor_id === orden.proveedor))
+    assert.equal(orden.total, orden.detalles.reduce((total, d) => total + d.cantidad * Number(d.precio_unitario), 0).toFixed(2))
+    for (const detalle of orden.detalles) assert.ok(datos.productos.some(p => p.id === detalle.producto_id))
+  }
+  handler = () => { throw new Error('Demo must not call API') }
+  const id = datos.ordenes.find(o => o.estado === 1).ordencompra_id
+  assert.equal(mock.cambiar(id, 2).estado, 2)
+  assert.equal(mock.cambiar(id, 4).estado, 4)
+  assert.throws(() => mock.cambiar(id, 6), /factura/)
+  assert.equal(mock.contabilizar(id, { numero: 'DEMO-TEST', fecha: '2026-10-09', impuestos: 20 }).estado, 6)
+  assert.equal(mock.facturas().filter(f => f.ordencompra_id === id).length, 1)
+  assert.throws(() => mock.contabilizar(id, { numero: 'DUP', fecha: '2026-10-09', impuestos: 0 }))
+  mock.crear({ cabecera: { proveedor_id: -1, fecha: '2026-10-09', total: 100 }, detalles: [{ producto_id: -1, cantidad: 2, preciounitario: 50 }] })
+  assert.equal(mock.cargar().ordenes.length, 21)
+  assert.equal(crearComprasMock().cargar().ordenes.length, 20)
 })

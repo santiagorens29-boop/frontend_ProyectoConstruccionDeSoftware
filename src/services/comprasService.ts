@@ -1,4 +1,5 @@
 import api from '../api/clienteAxios'
+import type { Proveedor } from '../types/proveedor'
 import { obtenerTodasLasPaginas } from './paginacion'
 import type { EstadoCompra, FacturaCompra, NuevaOrdenCompra, OrdenCompraCabecera, OrdenCompraDetalle } from '../types/compra'
 
@@ -12,13 +13,20 @@ export interface OrdenCompraAPI {
 }
 
 export const obtenerOrdenesCompra = () => obtenerTodasLasPaginas<OrdenCompraAPI>('/compras/ordenes-compra/')
-export const obtenerEstadosCompra = () => obtenerTodasLasPaginas<EstadoCompra>('/compras/estados-orden-compra/')
+export async function obtenerEstadosCompra() {
+  const estados = await obtenerTodasLasPaginas<EstadoCompra>('/compras/estados-orden-compra/')
+  const posicion = (nombre: string) => {
+    const indice = estadosCompra.findIndex(estado => estado === normalizarEstadoCompra(nombre))
+    return indice < 0 ? estadosCompra.length : indice
+  }
+  return estados.sort((a, b) => posicion(a.nombre) - posicion(b.nombre))
+}
 
 export function presentarOrden(orden: OrdenCompraAPI, estados: EstadoCompra[]): OrdenCompraCabecera {
   return {
     ordencompra_id: orden.ordencompra_id, proveedor_id: orden.proveedor,
     fecha: orden.fecha, total: Number(orden.total),
-    estado: estados.find(e => e.estadoordencompra_id === orden.estado)?.nombre.toLowerCase() ?? `Estado #${orden.estado}`
+    estado: normalizarEstadoCompra(estados.find(e => e.estadoordencompra_id === orden.estado)?.nombre ?? `Estado #${orden.estado}`)
   }
 }
 
@@ -47,13 +55,57 @@ export async function actualizarEstadoCompra(id: number, estado: number): Promis
   return data
 }
 
+export const estadosCompra = ['pendiente', 'aprobada', 'rechazada', 'recibida', 'devuelto', 'contabilizado'] as const
+
+const transicionesCompra: Record<string, readonly string[]> = {
+  pendiente: ['aprobada', 'rechazada'],
+  aprobada: ['recibida', 'devuelto'],
+  recibida: ['contabilizado'],
+  rechazada: [],
+  devuelto: [],
+  contabilizado: []
+}
+
+export function normalizarEstadoCompra(nombre: string) {
+  const estado = nombre.trim().toLowerCase()
+  if (['aprobado', 'aprobar'].includes(estado)) return 'aprobada'
+  if (['rechazado', 'rechazar'].includes(estado)) return 'rechazada'
+  if (['recibido', 'recibir'].includes(estado)) return 'recibida'
+  return estado
+}
+
+export function buscarEstadoCompra(estados: EstadoCompra[], nombre: string) {
+  const buscado = normalizarEstadoCompra(nombre)
+  // Preferimos el nombre canónico si el catálogo contiene variantes duplicadas.
+  return estados.find(estado => estado.nombre.trim().toLowerCase() === buscado)
+    ?? estados.find(estado => normalizarEstadoCompra(estado.nombre) === buscado)
+}
+
 export function transicionPermitida(actual: string, nuevo: string) {
-  return (actual === 'pendiente' && ['aprobada', 'rechazada'].includes(nuevo)) ||
-    (actual === 'aprobada' && ['recibida', 'rechazada'].includes(nuevo))
+  actual = normalizarEstadoCompra(actual)
+  nuevo = normalizarEstadoCompra(nuevo)
+  return Object.hasOwn(transicionesCompra, actual) && transicionesCompra[actual]!.includes(nuevo)
 }
 
 export function estadoCompraReconocido(estado: string) {
-  return ['pendiente', 'aprobada', 'rechazada', 'recibida'].includes(estado)
+  return estadosCompra.some(nombre => nombre === normalizarEstadoCompra(estado))
+}
+
+export function claseEstadoCompra(estado: string) {
+  const nombre = normalizarEstadoCompra(estado)
+  if (['aprobada', 'contabilizado'].includes(nombre)) return 'bg-success'
+  if (['rechazada', 'devuelto'].includes(nombre)) return 'bg-danger'
+  if (nombre === 'recibida') return 'bg-primary'
+  if (nombre === 'pendiente') return 'bg-warning text-dark'
+  return 'bg-secondary'
+}
+
+export function etiquetaEstadoCompra(estado: string) {
+  estado = normalizarEstadoCompra(estado)
+  if (estado === 'aprobada') return 'Aprobado'
+  if (estado === 'rechazada') return 'Rechazado'
+  if (estado === 'recibida') return 'Recibido'
+  return estado.charAt(0).toUpperCase() + estado.slice(1)
 }
 
 export async function obtenerFacturasCompra(): Promise<FacturaCompra[]> {
@@ -74,7 +126,43 @@ export interface ProveedorAPI {
   telefono: string
   cuit: string
   direccion: string
-  productos: number[]
+  productos?: (number | { producto_id: number; precio_compra: string | null })[]
+  producto_id?: number | null
 }
 
-export const obtenerProveedores = () => obtenerTodasLasPaginas<ProveedorAPI>('/compras/proveedores/')
+export async function obtenerProveedores(): Promise<Proveedor[]> {
+  const proveedores = await obtenerTodasLasPaginas<ProveedorAPI>('/compras/proveedores/')
+  return proveedores.map(({ producto_id, productos, ...proveedor }) => {
+    const asociados = productos ?? (producto_id == null ? [] : [producto_id])
+    return {
+      ...proveedor,
+      productos: asociados.map(producto => typeof producto === 'number' ? producto : producto.producto_id),
+      preciosCompra: Object.fromEntries(asociados.flatMap(producto => typeof producto === 'number' ? [] : [[
+        producto.producto_id, producto.precio_compra === null ? null : Number(producto.precio_compra)
+      ]]))
+    }
+  })
+}
+
+export function precioCompraProveedor(proveedor: Proveedor, producto: { id: number; precio?: number }) {
+  // El servidor anterior usa el precio del producto. Un precio de compra nulo
+  // en el contrato nuevo sigue siendo faltante y no se reemplaza por el de venta.
+  if (proveedor.preciosCompra && Object.hasOwn(proveedor.preciosCompra, producto.id)) {
+    return proveedor.preciosCompra[producto.id] ?? NaN
+  }
+  return producto.precio ?? NaN
+}
+
+export interface DatosFacturaCompra {
+  numero: string
+  fecha: string
+  impuestos: number
+}
+
+export async function enviarOrdenAFinanzas(id: number, datos: DatosFacturaCompra) {
+  const { data } = await api.post<{ orden: OrdenCompraAPI }>(
+    `/compras/ordenes-compra/${id}/enviar-a-finanzas/`,
+    { numero: datos.numero.trim(), fecha: new Date(`${datos.fecha}T12:00:00`).toISOString(), impuestos: datos.impuestos.toFixed(2) }
+  )
+  return data.orden
+}

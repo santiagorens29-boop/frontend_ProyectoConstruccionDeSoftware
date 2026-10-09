@@ -1,4 +1,5 @@
 import api from '../lib/api'
+import { obtenerTodasLasPaginas } from './paginacion'
 import {
   PRODUCTOS_MOCK,
   MOVIMIENTOS_INVENTARIO_MOCK,
@@ -131,19 +132,9 @@ export async function obtenerMovimientosPorProducto(productoId: number): Promise
 
 // Función auxiliar exportada para las vistas de compras y proveedores
 export async function obtenerProductosProveedor(): Promise<ProductoProveedor[]> {
-  try {
-    const productos = await obtenerProductos()
-    return productos.map(p => ({
-      id: p.id ?? p.producto_id,
-      nombre: p.nombre,
-      codigo: p.codigo,
-      precio: typeof p.precio === 'string' ? parseFloat(p.precio) : p.precio,
-      rubro: p.rubro_nombre ?? p.rubro_id
-    }))
-  } catch {
-    return [
-      { id: 1, nombre: 'Cemento Portland Normal 50kg', codigo: 'ART-001', precio: 9800 },
-      { id: 2, nombre: 'Hierro Conformado 12mm x 12m', codigo: 'ART-002', precio: 14500 }
-    ]
-  }
+  const productos = await obtenerTodasLasPaginas<Omit<ProductoProveedor, 'precio'> & { precio?: number | string }>(RUTA_PRODUCTOS)
+  return productos.map(producto => ({
+    ...producto,
+    ...(producto.precio === undefined ? {} : { precio: Number(producto.precio) })
+  })) as ProductoProveedor[]
 }

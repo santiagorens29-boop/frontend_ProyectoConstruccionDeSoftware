@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { precioCompraProveedor } from '../services/comprasService'
 import type { Proveedor } from '../types/proveedor'
 import type { ProductoProveedor } from '../services/productosService'
 import type { NuevaOrdenCompra, NuevoOrdenCompraDetalle } from '../types/compra'
@@ -23,7 +24,8 @@ const proveedorSeleccionado = computed(() => props.proveedores.some(proveedor =>
 
 const productosDisponibles = computed(() => {
   const proveedor = props.proveedores.find(p => p.proveedor_id === proveedorId.value)
-  return props.productos.filter(p => proveedor?.productos.includes(p.id)).map(p => ({ producto_id: p.id, nombre: p.nombre, preciounitario: Number(p.precio) }))
+  if (!proveedor) return []
+  return props.productos.filter(p => proveedor.productos.includes(p.id)).map(p => ({ producto_id: p.id, nombre: p.nombre, preciounitario: precioCompraProveedor(proveedor, p) }))
 })
 const busquedaProveedor = ref('')
 function obtenerFechaActual() {
@@ -35,7 +37,7 @@ const fecha = ref(obtenerFechaActual())
 let siguienteClave = 1
 const items = ref<(NuevoOrdenCompraDetalle & { clave: number; busqueda: string })[]>([])
 const errorValidacion = ref('')
-const moneda = (valor: number) => valor.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })
+const moneda = (valor: number) => Number.isFinite(valor) ? valor.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' }) : 'Sin precio de compra'
 const subtotal = (item: NuevoOrdenCompraDetalle) => Math.round(item.cantidad * item.preciounitario * 100) / 100
 const total = computed(() => Math.round(items.value.reduce((suma, item) => suma + subtotal(item), 0) * 100) / 100)
 
@@ -115,8 +117,8 @@ function guardar() {
   if (!proveedorId.value || !fecha.value || !items.value.length || items.value.some(item =>
     !productosDisponibles.value.some(producto => producto.producto_id === item.producto_id)
     || !Number.isSafeInteger(item.cantidad) || item.cantidad <= 0
-    || !Number.isFinite(item.preciounitario) || item.preciounitario <= 0
-  ) || !Number.isFinite(total.value) || total.value <= 0) {
+    || !Number.isFinite(item.preciounitario) || item.preciounitario < 0
+  ) || !Number.isFinite(total.value) || total.value < 0) {
     errorValidacion.value = 'Completá proveedor, fecha y al menos un producto con cantidad entera mayor a cero y precio válido.'
     return
   }
@@ -251,7 +253,7 @@ watch(
                 </div>
                 <div class="col-md-2">
                   <label :for="`precio-${item.clave}`" class="form-label small">Precio unitario</label>
-                  <input :id="`precio-${item.clave}`" :value="moneda(item.preciounitario)" type="text" readonly class="form-control bg-light" />
+                  <input :id="`precio-${item.clave}`" :value="Number.isFinite(item.preciounitario) ? moneda(item.preciounitario) : 'Sin precio de compra'" type="text" readonly class="form-control bg-light" />
                 </div>
                 <div class="col-md-3">
                   <span class="small d-block mb-2">Subtotal</span>
