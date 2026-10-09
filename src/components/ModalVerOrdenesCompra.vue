@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import { normalizarBusqueda } from '../utils/busqueda'
 import type { OrdenCompraCabecera, OrdenCompraDetalle } from '../types/compra'
 import type { FacturaCompra, EstadoCompra } from '../types/compra'
@@ -55,6 +55,12 @@ function enviarFactura() {
   emit('enviar-a-finanzas', seleccionada.value.ordencompra_id, { numero: numeroFactura.value.trim(), fecha: fechaFactura.value, impuestos })
 }
 
+const consultaMobile = typeof window !== 'undefined' ? window.matchMedia('(max-width: 991.98px)') : null
+const esMobile = ref(consultaMobile?.matches ?? false)
+function actualizarMobile() { esMobile.value = consultaMobile?.matches ?? false }
+onMounted(() => consultaMobile?.addEventListener('change', actualizarMobile))
+onBeforeUnmount(() => consultaMobile?.removeEventListener('change', actualizarMobile))
+
 const busqueda = ref('')
 const filtroEstado = ref<OrdenCompraCabecera['estado'] | ''>('')
 const ordenId = ref<number | null>(null)
@@ -88,6 +94,11 @@ const ordenesFiltradas = computed(() => {
 })
 
 const seleccionada = computed(() => ordenesFiltradas.value.find(item => item.ordencompra_id === ordenId.value))
+const ordenesVisibles = computed(() => esMobile.value && seleccionada.value ? [seleccionada.value] : ordenesFiltradas.value)
+function seleccionarOrden(id: number) {
+  if (props.actualizando) return
+  ordenId.value = esMobile.value && ordenId.value === id ? null : id
+}
 const detallesSeleccionados = computed(() => props.detalles.filter(item => item.ordencompra_id === seleccionada.value?.ordencompra_id))
 const proveedorSeleccionado = computed(() => seleccionada.value ? proveedor(seleccionada.value.proveedor_id) : undefined)
 const facturasSeleccionadas = computed(() => seleccionada.value ? facturasDeOrden(seleccionada.value.ordencompra_id) : [])
@@ -104,7 +115,9 @@ function cerrar() {
 }
 
 watch(ordenesFiltradas, ordenes => {
-  if (!ordenes.some(item => item.ordencompra_id === ordenId.value)) ordenId.value = ordenes[0]?.ordencompra_id ?? null
+  if (!ordenes.some(item => item.ordencompra_id === ordenId.value)) {
+    ordenId.value = esMobile.value ? null : ordenes[0]?.ordencompra_id ?? null
+  }
 })
 
 watch(() => props.mostrar, async mostrar => {
@@ -115,7 +128,10 @@ watch(() => props.mostrar, async mostrar => {
     ordenId.value = props.ordenes.find(orden => orden.ordencompra_id === props.ordenInicialId)?.ordencompra_id
       ?? props.ordenes[0]?.ordencompra_id ?? null
     await nextTick()
-    buscador.value?.focus()
+    if (esMobile.value) {
+      const botonSeleccionado = dialogo.value?.querySelector<HTMLButtonElement>('.list-group button[aria-pressed="true"]')
+      ;(botonSeleccionado ?? dialogo.value)?.focus()
+    } else buscador.value?.focus()
   } else {
     focoAnterior?.focus()
   }
@@ -169,7 +185,7 @@ function mantenerFoco(event: KeyboardEvent) {
                 <div class="card border-0 shadow-sm overflow-hidden">
                   <div class="card-header encabezado text-white fw-semibold py-3">Órdenes registradas</div>
                   <div class="list-group list-group-flush">
-                    <button v-for="orden in ordenesFiltradas" :key="orden.ordencompra_id" type="button" class="list-group-item list-group-item-action p-3" :disabled="actualizando" :class="{ seleccionada: ordenId === orden.ordencompra_id }" :aria-pressed="ordenId === orden.ordencompra_id" @click="ordenId = orden.ordencompra_id">
+                    <button v-for="orden in ordenesVisibles" :key="orden.ordencompra_id" type="button" class="list-group-item list-group-item-action p-3" :disabled="actualizando" :class="{ seleccionada: ordenId === orden.ordencompra_id }" :aria-pressed="ordenId === orden.ordencompra_id" @click="seleccionarOrden(orden.ordencompra_id)">
                       <span class="d-flex justify-content-between gap-2 mb-2">
                         <strong>{{ orden.ordencompra_id < 0 ? 'Ejemplo' : 'Orden' }} #{{ Math.abs(orden.ordencompra_id) }}</strong>
                         <span class="badge align-self-start" :class="claseEstadoCompra(orden.estado)">{{ etiquetaEstadoCompra(orden.estado) }}</span>
@@ -177,6 +193,7 @@ function mantenerFoco(event: KeyboardEvent) {
                       <span class="d-block fw-semibold">{{ proveedor(orden.proveedor_id)?.nombre }} {{ proveedor(orden.proveedor_id)?.apellido }}</span>
                       <span class="d-flex justify-content-between gap-2 small mt-2"><span class="text-muted">{{ orden.fecha }}</span><strong>{{ moneda(orden.total) }}</strong></span>
                       <span class="d-block small text-muted mt-2">{{ cargandoFacturas ? 'Cargando comprobantes…' : errorFacturas ? 'Comprobantes no disponibles' : facturasDeOrden(orden.ordencompra_id).length ? facturasDeOrden(orden.ordencompra_id).map(factura => factura.numero).join(', ') : 'Sin factura asociada' }}</span>
+                      <span v-if="esMobile && ordenId === orden.ordencompra_id" class="d-block small text-coralon fw-semibold mt-2">Tocá nuevamente para ver las demás órdenes</span>
                     </button>
                     <p v-if="!ordenesFiltradas.length" class="text-muted text-center p-4 mb-0">No se encontraron órdenes.</p>
                   </div>

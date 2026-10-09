@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { crearComprasMock } from '../mocks/comprasMock'
 import ModalConfirmacion from '../components/ModalConfirmacion.vue'
 import ModalNuevaOrdenCompra from '../components/ModalNuevaOrdenCompra.vue'
@@ -67,8 +67,10 @@ const ordenesFiltradas = computed(() => cabeceras.value.filter(o =>
   (!filtroEstado.value || o.estado === filtroEstado.value) &&
   normalizarBusqueda(`${o.ordencompra_id} ${nombreProveedor(o.proveedor_id)} ${fechaVisible(o.fecha)}`).includes(normalizarBusqueda(filtroBusqueda.value))
 ).sort((a, b) => {
+  // Los ejemplos usan IDs negativos internamente, pero se ordenan por el número visible.
+  const diferenciaNumero = Math.abs(a.ordencompra_id) - Math.abs(b.ordencompra_id)
   let comparacion = 0
-  if (campoOrden.value === 'numero') comparacion = a.ordencompra_id - b.ordencompra_id
+  if (campoOrden.value === 'numero') comparacion = diferenciaNumero
   else if (campoOrden.value === 'proveedor') {
     comparacion = nombreProveedor(a.proveedor_id).localeCompare(nombreProveedor(b.proveedor_id), 'es-AR', { sensitivity: 'base', numeric: true })
   } else {
@@ -76,12 +78,23 @@ const ordenesFiltradas = computed(() => cabeceras.value.filter(o =>
     const fechaB = Date.parse(b.fecha)
     // Las fechas inválidas quedan al final, en ambos sentidos.
     if (Number.isNaN(fechaA) || Number.isNaN(fechaB)) {
-      return Number(Number.isNaN(fechaA)) - Number(Number.isNaN(fechaB)) || a.ordencompra_id - b.ordencompra_id
+      return Number(Number.isNaN(fechaA)) - Number(Number.isNaN(fechaB)) || diferenciaNumero
     }
     comparacion = fechaA - fechaB
   }
-  return (comparacion || a.ordencompra_id - b.ordencompra_id) * (sentidoOrden.value === 'asc' ? 1 : -1)
+  return (comparacion || diferenciaNumero) * (sentidoOrden.value === 'asc' ? 1 : -1)
 }))
+
+const filasPorPagina = 20
+const limiteFilas = ref(filasPorPagina)
+const ordenesVisibles = computed(() => ordenesFiltradas.value.slice(0, limiteFilas.value))
+const hayMasOrdenes = computed(() => limiteFilas.value < ordenesFiltradas.value.length)
+function cargarMas() {
+  limiteFilas.value += filasPorPagina
+}
+watch([filtroBusqueda, filtroEstado, campoOrden, sentidoOrden], () => {
+  limiteFilas.value = filasPorPagina
+})
 
 async function cargar() {
   if (cargando.value) return
@@ -96,6 +109,7 @@ async function cargar() {
     proveedores.value = [...catalogoProveedores, ...(ejemplos?.proveedores ?? [])]
     productos.value = [...catalogoProductos, ...(ejemplos?.productos ?? [])]
     estadosReales.value = catalogoEstados
+    limiteFilas.value = filasPorPagina
     catalogosListos.value = true
   } catch (error) {
     errorConsulta.value = (error instanceof Error && !('isAxiosError' in error) ? error.message : mensajeErrorApi(error))
@@ -224,7 +238,7 @@ onMounted(cargar)
           <th>Estado</th><th class="text-end">Total</th>
         </tr></thead>
         <tbody>
-          <tr v-for="orden in ordenesFiltradas" :key="orden.ordencompra_id" class="orden-seleccionable" @click="abrirConsulta(orden.ordencompra_id)">
+          <tr v-for="orden in ordenesVisibles" :key="orden.ordencompra_id" class="orden-seleccionable" @click="abrirConsulta(orden.ordencompra_id)">
             <td><button class="btn btn-link" :disabled="accionesBloqueadas" @click.stop="abrirConsulta(orden.ordencompra_id)">#{{ Math.abs(orden.ordencompra_id) }}</button><span v-if="esEjemplo(orden.ordencompra_id)" class="badge bg-secondary ms-1">Ejemplo</span></td>
             <td>{{ nombreProveedor(orden.proveedor_id) }}</td>
             <td><div v-for="detalle in detalles.filter(d => d.ordencompra_id === orden.ordencompra_id)" :key="detalle.ordencompradetalle_id">{{ nombreProducto(detalle.producto_id) }} × {{ detalle.cantidad }}</div></td>
@@ -235,6 +249,10 @@ onMounted(cargar)
         </tbody>
       </table>
     </div></div>
+    <div v-if="ordenesFiltradas.length" class="d-flex flex-wrap justify-content-between align-items-center gap-2 mt-3">
+      <span class="text-muted small" role="status">Mostrando {{ ordenesVisibles.length }} de {{ ordenesFiltradas.length }} órdenes</span>
+      <button v-if="hayMasOrdenes" type="button" class="btn btn-outline-coralon" :disabled="accionesBloqueadas" @click="cargarMas">Cargar más</button>
+    </div>
     <ModalNuevaOrdenCompra :mostrar="mostrarNuevaOrden" :guardando="guardando" :error="errorGuardado" :proveedores="proveedores" :productos="productos" @cerrar="mostrarNuevaOrden = false" @guardar="guardarOrden" />
     <ModalVerOrdenesCompra :mostrar="mostrarConsultaOrdenes" :orden-inicial-id="ordenConsultaId" :ordenes="cabeceras" :detalles="detalles" :proveedores="proveedores" :productos="productos" :estados="estados" :facturas="facturas" :cargando-facturas="cargandoFacturas" :error-facturas="errorFacturas" :actualizando="accionesBloqueadas" :error="errorEstado" :mensaje="mensaje" @cerrar="mostrarConsultaOrdenes = false" @cambiar-estado="cambiarEstado" @enviar-a-finanzas="enviarAFinanzas" @reintentar-facturas="cargarFacturas" />
     <ModalConfirmacion v-if="mensajeConfirmacion" :mensaje="mensajeConfirmacion" @resolver="resolverCambioEstado" />
