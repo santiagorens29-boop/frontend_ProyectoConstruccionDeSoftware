@@ -1,9 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { 
-  type Producto, 
-  type MovimientoInventario 
-} from '../types/producto'
+import type { Producto, MovimientoInventario } from '../types/producto'
 import { RUBROS_MOCK, type Rubro } from '../types/rubro'
 import { 
   obtenerProductos, 
@@ -136,18 +133,18 @@ async function guardarProducto(datos: any) {
 </script>
 
 <template>
-  <div class="container-fluid py-2">
+  <div class="container-fluid p-0">
     <!-- Header y Acciones -->
-    <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-4 gap-3">
       <div>
         <h3 class="fw-bold mb-0 text-dark">Catálogo de Productos</h3>
         <p class="text-muted small mb-0">Gestión de inventario, precios y catálogo del corralón</p>
       </div>
 
-      <div class="d-flex flex-wrap gap-2">
+      <div class="d-flex flex-wrap gap-2 w-100 w-md-auto">
         <!-- Ver Movimientos -->
         <button 
-          class="btn btn-outline-secondary d-flex align-items-center gap-2 px-3 fw-semibold"
+          class="btn btn-outline-secondary d-flex align-items-center justify-content-center gap-2 px-3 fw-semibold flex-fill flex-md-grow-0"
           :disabled="!productoSeleccionado"
           @click="verMovimientos"
         >
@@ -156,7 +153,7 @@ async function guardarProducto(datos: any) {
 
         <!-- Inactivar (Baja lógica) -->
         <button 
-          class="btn btn-outline-danger d-flex align-items-center gap-2 px-3 fw-semibold"
+          class="btn btn-outline-danger d-flex align-items-center justify-content-center gap-2 px-3 fw-semibold flex-fill flex-md-grow-0"
           :disabled="!productoSeleccionado"
           @click="darDeBaja"
         >
@@ -165,7 +162,7 @@ async function guardarProducto(datos: any) {
 
         <!-- Botón Editar -->
         <button 
-          class="btn btn-outline-coralon d-flex align-items-center gap-2 px-3 fw-semibold"
+          class="btn btn-outline-coralon d-flex align-items-center justify-content-center gap-2 px-3 fw-semibold flex-fill flex-md-grow-0"
           :disabled="!productoSeleccionado"
           @click="abrirModalEditar"
         >
@@ -174,7 +171,7 @@ async function guardarProducto(datos: any) {
 
         <!-- Botón Nuevo Producto -->
         <button 
-          class="btn btn-coralon d-flex align-items-center gap-2 px-3 fw-semibold"
+          class="btn btn-coralon d-flex align-items-center justify-content-center gap-2 px-3 fw-semibold flex-fill flex-md-grow-0"
           @click="abrirModalCrear"
         >
           <span>+ Nuevo Producto</span>
@@ -186,7 +183,7 @@ async function guardarProducto(datos: any) {
     <div class="card shadow-sm border-0 mb-4 search-card">
       <div class="card-body p-3">
         <div class="row">
-          <div class="col-md-6">
+          <div class="col-12 col-md-6 col-lg-5">
             <input
               v-model="filtroBusqueda"
               type="text"
@@ -198,19 +195,19 @@ async function guardarProducto(datos: any) {
       </div>
     </div>
 
-    <!-- Tabla -->
+    <!-- Tabla Responsive -->
     <div class="card shadow-sm border-0 overflow-hidden">
       <div class="table-responsive">
         <table class="table table-hover align-middle mb-0">
           <thead class="table-dark-custom">
             <tr>
-              <th class="ps-3 py-3">ID</th>
+              <th class="ps-3 py-3" style="width: 60px;">ID</th>
               <th class="py-3">Producto</th>
-              <th class="py-3">Descripción</th>
-              <th class="py-3">Rubro</th>
+              <th class="py-3 d-none d-md-table-cell">Descripción</th>
+              <th class="py-3 d-none d-lg-table-cell">Rubro</th>
               <th class="py-3">Precio Unit.</th>
-              <th class="py-3">Stock Actual</th>
-              <th class="py-3 pe-3">Stock Mín.</th>
+              <th class="py-3 text-center">Stock Actual</th>
+              <th class="py-3 pe-3 text-center d-none d-sm-table-cell">Stock Mín.</th>
             </tr>
           </thead>
           <tbody>
@@ -221,26 +218,32 @@ async function guardarProducto(datos: any) {
               style="cursor: pointer;"
               @click="seleccionarFila(producto)"
             >
-              <td class="ps-3 fw-bold">{{ producto.producto_id }}</td>
-              <td class="fw-semibold">{{ producto.nombre }}</td>
-              <td class="text-secondary small text-truncate" style="max-width: 250px;">
+              <td class="ps-3 fw-bold">#{{ producto.producto_id }}</td>
+              <td>
+                <div class="fw-semibold text-dark">{{ producto.nombre }}</div>
+                <!-- Muestra rubro en badge pequeñito en mobile cuando la columna se oculta -->
+                <div class="d-lg-none mt-1">
+                  <span class="badge badge-rubro small">{{ obtenerNombreRubro(producto.rubro_id) }}</span>
+                </div>
+              </td>
+              <td class="text-secondary small text-truncate d-none d-md-table-cell" style="max-width: 250px;">
                 {{ producto.descripcion }}
               </td>
-              <td>
+              <td class="d-none d-lg-table-cell">
                 <span class="badge badge-rubro">
                   {{ obtenerNombreRubro(producto.rubro_id) }}
                 </span>
               </td>
               <td class="fw-bold text-dark">${{ producto.preciounitario.toLocaleString('es-AR') }}</td>
-              <td>
+              <td class="text-center">
                 <span 
-                  class="badge" 
+                  class="badge px-2 py-1" 
                   :class="producto.stockactual <= producto.stockminreposicion ? 'bg-danger' : 'bg-success'"
                 >
                   {{ producto.stockactual }} un.
                 </span>
               </td>
-              <td class="pe-3 text-muted">{{ producto.stockminreposicion }} un.</td>
+              <td class="pe-3 text-muted text-center d-none d-sm-table-cell">{{ producto.stockminreposicion }} un.</td>
             </tr>
             <tr v-if="productosFiltrados.length === 0">
               <td colspan="7" class="text-center py-5 text-muted">
