@@ -21,8 +21,7 @@ function alIniciarSesion() {
 }
 
 const moduloActivo = ref('administrativos')
-
-const subVistaActiva = ref<'opcion1' | 'opcion2' | 'opcion3'>('opcion2')
+const subVistaActiva = ref<'opcion1' | 'opcion2' | 'opcion3'>('opcion1')
 
 function cambiarModulo(nuevoModulo: string) {
   moduloActivo.value = nuevoModulo
@@ -113,13 +112,14 @@ const accionesSidebar = computed<{
 <template>
   <LoginView v-if="!estaAutenticado" @sesion-iniciada="alIniciarSesion" />
 
-  <div v-else class="d-flex flex-column min-vh-100 bg-light">
+  <div v-else class="d-flex flex-column min-vh-100 bg-light overflow-x-hidden">
     <Navbar
       :modulo-activo="moduloActivo"
       @cambiar-modulo="cambiarModulo"
     />
 
-    <div class="d-flex flex-grow-1">
+    <!-- Contenedor Responsive: flex-column en mobile, flex-lg-row en desktop -->
+    <div class="d-flex flex-column flex-lg-row flex-grow-1 w-100">
       <SideBar
         :accion1="accionesSidebar.accion1"
         :accion2="accionesSidebar.accion2"
@@ -128,7 +128,8 @@ const accionesSidebar = computed<{
         @seleccionar-accion="(opcion) => subVistaActiva = opcion"
       />
 
-      <main class="flex-grow-1 p-4">
+      <!-- Area Principal con min-width 0 para que la tabla contenga su scroll interno -->
+      <main class="flex-grow-1 p-3 p-md-4 main-content-wrapper" style="min-width: 0;">
         <template v-if="moduloActivo === 'finanzas'">
           <FinanzasFacturacionView v-if="subVistaActiva === 'opcion1'" />
           <FinanzasCierreView v-else-if="subVistaActiva === 'opcion2'" />
@@ -158,3 +159,9 @@ const accionesSidebar = computed<{
     </div>
   </div>
 </template>
+
+<style scoped>
+.main-content-wrapper {
+  background-color: #f8f9fa;
+}
+</style>
