@@ -2,14 +2,15 @@
 import { ref, computed, onMounted } from 'vue'
 import type { Producto, MovimientoInventario } from '../types/producto'
 import { RUBROS_MOCK, type Rubro } from '../types/rubro'
-import { 
-  obtenerProductos, 
-  crearProducto, 
-  actualizarProducto, 
-  inactivarProducto, 
-  obtenerMovimientosPorProducto 
+import {
+  obtenerProductos,
+  crearProducto,
+  actualizarProducto,
+  inactivarProducto,
+  obtenerMovimientosPorProducto
 } from '../services/productosService'
 import { obtenerRubros } from '../services/rubrosService'
+import { mensajeErrorApi } from '../utils/erroresApi'
 import ModalProducto from '../components/ModalProducto.vue'
 import ModalMovimientos from '../components/ModalMovimientos.vue'
 
@@ -20,6 +21,9 @@ const productoSeleccionado = ref<Producto | null>(null)
 
 const mostrarModal = ref(false)
 const productoParaEditar = ref<Producto | null>(null)
+const guardando = ref(false)
+const errorGuardado = ref('')
+const mensajeExito = ref('')
 
 // Modal de Movimientos
 const mostrarModalMovimientos = ref(false)
@@ -60,16 +64,19 @@ function seleccionarFila(producto: Producto) {
 
 function abrirModalCrear() {
   productoParaEditar.value = null
+  errorGuardado.value = ''
   mostrarModal.value = true
 }
 
 function abrirModalEditar() {
   if (!productoSeleccionado.value) return
   productoParaEditar.value = { ...productoSeleccionado.value }
+  errorGuardado.value = ''
   mostrarModal.value = true
 }
 
 function cerrarModal() {
+  if (guardando.value) return
   mostrarModal.value = false
   productoParaEditar.value = null
 }
@@ -100,35 +107,30 @@ async function darDeBaja() {
 }
 
 async function guardarProducto(datos: any) {
-  if (datos.producto_id) {
-    try {
-      await actualizarProducto(datos.producto_id, datos)
-    } catch (e) {
-      console.warn('Edición guardada localmente.', e)
-    }
-    const idx = listaProductos.value.findIndex(p => p.producto_id === datos.producto_id)
-    if (idx !== -1) {
-      listaProductos.value[idx] = { ...listaProductos.value[idx], ...datos }
-      productoSeleccionado.value = listaProductos.value[idx]
-    }
-  } else {
-    let nuevoProd: Producto
-    try {
-      nuevoProd = await crearProducto(datos)
-    } catch (e) {
-      const nuevoId = listaProductos.value.length > 0 
-        ? Math.max(...listaProductos.value.map(p => p.producto_id)) + 1 
-        : 1
-      nuevoProd = {
-        ...datos,
-        producto_id: nuevoId,
-        stockactual: 0,
-        activo: true
+  if (guardando.value) return
+  guardando.value = true
+  errorGuardado.value = ''
+  mensajeExito.value = ''
+  try {
+    if (datos.producto_id) {
+      const actualizado = await actualizarProducto(datos.producto_id, datos)
+      const idx = listaProductos.value.findIndex(p => p.producto_id === datos.producto_id)
+      if (idx !== -1) {
+        listaProductos.value[idx] = actualizado
+        productoSeleccionado.value = actualizado
       }
+      mensajeExito.value = 'Producto actualizado correctamente.'
+    } else {
+      const nuevoProd = await crearProducto(datos)
+      listaProductos.value.unshift(nuevoProd)
+      mensajeExito.value = 'Producto creado correctamente.'
     }
-    listaProductos.value.unshift(nuevoProd)
+    cerrarModal()
+  } catch (error) {
+    errorGuardado.value = mensajeErrorApi(error)
+  } finally {
+    guardando.value = false
   }
-  cerrarModal()
 }
 </script>
 
@@ -177,6 +179,11 @@ async function guardarProducto(datos: any) {
           <span>+ Nuevo Producto</span>
         </button>
       </div>
+    </div>
+
+    <!-- Alertas -->
+    <div v-if="mensajeExito" class="alert alert-success py-2 small mb-3" role="status">
+      {{ mensajeExito }}
     </div>
 
     <!-- Buscador -->
@@ -259,6 +266,8 @@ async function guardarProducto(datos: any) {
     <ModalProducto
       :mostrar="mostrarModal"
       :producto-a-editar="productoParaEditar"
+      :guardando="guardando"
+      :error="errorGuardado"
       @cerrar="cerrarModal"
       @guardar="guardarProducto"
     />
