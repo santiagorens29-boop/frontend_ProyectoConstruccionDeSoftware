@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { vTextoLimpio } from '../directives/textoLimpio'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { crearComprasMock } from '../mocks/comprasMock'
 import ModalConfirmacion from '../components/ModalConfirmacion.vue'
@@ -225,10 +226,48 @@ onMounted(cargar)
     <div v-if="errorConsulta" class="alert alert-danger" role="alert">{{ errorConsulta }} <button class="btn btn-sm btn-outline-danger" :disabled="accionesBloqueadas" @click="cargar">Reintentar</button></div>
     <div v-if="errorEstado" class="alert alert-danger" role="alert">{{ errorEstado }}</div>
     <div class="card border-0 shadow-sm p-3 mb-4"><div class="row g-3">
-      <div class="col-md-6"><label for="buscar-orden" class="form-label">Buscar orden</label><input id="buscar-orden" v-model="filtroBusqueda" type="search" class="form-control" placeholder="Número, proveedor o fecha" /></div>
+      <div class="col-md-6"><label for="buscar-orden" class="form-label">Buscar orden</label><input maxlength="150" v-texto-limpio id="buscar-orden" v-model="filtroBusqueda" type="search" class="form-control" placeholder="Número, proveedor o fecha" /></div>
       <div class="col-md-6"><label for="estado-orden" class="form-label">Estado</label><select id="estado-orden" v-model="filtroEstado" class="form-select"><option value="">Todos los estados</option><option v-for="estado in estados" :key="estado.estadoordencompra_id" :value="normalizarEstadoCompra(estado.nombre)">{{ etiquetaEstadoCompra(estado.nombre.toLowerCase()) }}</option></select></div>
     </div></div>
-    <div class="card border-0 shadow-sm overflow-hidden" :aria-busy="cargando"><div class="table-responsive">
+    <section class="d-lg-none" aria-label="Órdenes de compra" :aria-busy="cargando">
+      <div class="row g-2 mb-3">
+        <div class="col-7">
+          <label for="orden-mobile-campo" class="form-label small">Ordenar por</label>
+          <select id="orden-mobile-campo" v-model="campoOrden" class="form-select">
+            <option value="numero">N° de orden</option><option value="proveedor">Proveedor</option><option value="fecha">Fecha</option>
+          </select>
+        </div>
+        <div class="col-5">
+          <label for="orden-mobile-sentido" class="form-label small">Sentido</label>
+          <select id="orden-mobile-sentido" v-model="sentidoOrden" class="form-select">
+            <option value="asc">Ascendente</option><option value="desc">Descendente</option>
+          </select>
+        </div>
+      </div>
+      <ul class="list-unstyled d-grid gap-3 mb-0">
+        <li v-for="orden in ordenesVisibles" :key="orden.ordencompra_id">
+          <button type="button" class="orden-tarjeta card shadow-sm p-3 w-100 text-start" :disabled="accionesBloqueadas" :aria-label="`Ver orden #${Math.abs(orden.ordencompra_id)} de ${nombreProveedor(orden.proveedor_id)}`" @click="abrirConsulta(orden.ordencompra_id)">
+            <span class="d-flex flex-wrap justify-content-between align-items-center gap-2 w-100 mb-2">
+              <span class="fw-bold">Orden #{{ Math.abs(orden.ordencompra_id) }} <span v-if="esEjemplo(orden.ordencompra_id)" class="badge bg-secondary ms-1">Ejemplo</span></span>
+              <span class="badge" :class="claseEstadoCompra(orden.estado)">{{ etiquetaEstadoCompra(orden.estado) }}</span>
+            </span>
+            <span class="fw-semibold text-break">{{ nombreProveedor(orden.proveedor_id) }}</span>
+            <span class="small text-muted mt-1">Fecha: {{ fechaVisible(orden.fecha) }}</span>
+            <span class="d-block border-top pt-2 mt-3 w-100">
+              <span class="small text-muted d-block mb-1">Productos y cantidades</span>
+              <span v-for="detalle in detalles.filter(d => d.ordencompra_id === orden.ordencompra_id)" :key="detalle.ordencompradetalle_id" class="d-block small text-break">{{ nombreProducto(detalle.producto_id) }} × {{ detalle.cantidad }}</span>
+            </span>
+            <span class="d-flex flex-wrap justify-content-between align-items-center gap-2 border-top pt-2 mt-3 w-100">
+              <span class="small text-coralon">Ver detalle →</span>
+              <span class="fw-bold text-break">Total: {{ moneda(orden.total) }}</span>
+            </span>
+          </button>
+        </li>
+      </ul>
+      <p v-if="cargando" class="text-center p-4 mb-0" role="status">Cargando órdenes…</p>
+      <p v-else-if="!errorConsulta && !ordenesFiltradas.length" class="text-center p-4 text-muted mb-0">{{ filtroBusqueda || filtroEstado ? 'No hay órdenes que coincidan con los filtros.' : 'No hay órdenes registradas.' }}</p>
+    </section>
+    <div class="card border-0 shadow-sm overflow-hidden d-none d-lg-block" :aria-busy="cargando"><div class="table-responsive">
       <table class="table table-hover align-middle mb-0">
         <thead class="table-dark-custom"><tr>
           <th scope="col" :aria-sort="ariaOrden('numero')"><button type="button" class="ordenar-columna" :aria-label="etiquetaOrden('numero', 'número de orden')" @click="ordenarPor('numero')">N° Orden <span aria-hidden="true">{{ indicadorOrden('numero') }}</span></button></th>
@@ -260,6 +299,11 @@ onMounted(cargar)
 </template>
 <style scoped>
 .orden-seleccionable { cursor: pointer; }
+.orden-tarjeta { border: 1px solid #e4dfdc; color: inherit; font: inherit; }
+.orden-tarjeta:hover:not(:disabled) { border-color: #b33e14; background-color: #fff8f4; }
+.orden-tarjeta:focus-visible { outline: 2px solid #b33e14; outline-offset: 3px; }
+.orden-tarjeta:disabled { opacity: 0.65; }
+
 .text-coralon { color: #b33e14; }
 .ordenar-columna {
   display: inline-flex;

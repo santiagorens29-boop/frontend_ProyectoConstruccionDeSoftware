@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import { vTextoLimpio } from '../directives/textoLimpio'
 import { computed, nextTick, onMounted, onBeforeUnmount, ref, watch } from 'vue'
+import { limpiarTexto, importeValido, fechaValida } from '../utils/validacionesCompras'
 import { normalizarBusqueda } from '../utils/busqueda'
 import type { OrdenCompraCabecera, OrdenCompraDetalle } from '../types/compra'
 import type { FacturaCompra, EstadoCompra } from '../types/compra'
@@ -47,12 +49,13 @@ const errorFactura = ref('')
 function enviarFactura() {
   if (!seleccionada.value || seleccionada.value.estado !== 'recibida' || props.actualizando || props.cargandoFacturas || props.errorFacturas || facturasSeleccionadas.value.length) return
   const impuestos = Number(impuestosFactura.value)
-  if (!numeroFactura.value.trim() || !fechaFactura.value || impuestosFactura.value === '' || !Number.isFinite(impuestos) || impuestos < 0 || impuestos > 9999999999.99) {
+  const numero = limpiarTexto(numeroFactura.value)
+  if (!numero || numero.length > 50 || !fechaValida(fechaFactura.value) || String(impuestosFactura.value).trim() === '' || !importeValido(impuestos) || !importeValido(Math.round((seleccionada.value.total + impuestos) * 100) / 100)) {
     errorFactura.value = 'Completá número, fecha e importe de impuestos válido.'
     return
   }
   errorFactura.value = ''
-  emit('enviar-a-finanzas', seleccionada.value.ordencompra_id, { numero: numeroFactura.value.trim(), fecha: fechaFactura.value, impuestos })
+  emit('enviar-a-finanzas', seleccionada.value.ordencompra_id, { numero, fecha: fechaFactura.value, impuestos })
 }
 
 const consultaMobile = typeof window !== 'undefined' ? window.matchMedia('(max-width: 991.98px)') : null
@@ -171,7 +174,7 @@ function mantenerFoco(event: KeyboardEvent) {
             <div class="card border-0 shadow-sm mb-4">
               <div class="card-body">
                 <label for="buscar-orden-consulta" class="form-label small fw-semibold">Buscar orden</label>
-                <input id="buscar-orden-consulta" ref="buscador" v-model="busqueda" type="search" class="form-control" :disabled="actualizando" placeholder="Número de orden, proveedor, fecha o comprobante..." />
+                <input maxlength="150" v-texto-limpio id="buscar-orden-consulta" ref="buscador" v-model="busqueda" type="search" class="form-control" :disabled="actualizando" placeholder="Número de orden, proveedor, fecha o comprobante..." />
                 <label for="estado-orden-consulta" class="form-label small fw-semibold mt-3">Filtrar por estado</label>
                 <select id="estado-orden-consulta" v-model="filtroEstado" class="form-select" :disabled="actualizando">
                   <option value="">Todos los estados</option>
@@ -230,7 +233,7 @@ function mantenerFoco(event: KeyboardEvent) {
                       <div v-if="errorFactura" class="alert alert-danger" role="alert">{{ errorFactura }}</div>
                       <fieldset :disabled="actualizando">
                         <div class="row g-2">
-                          <div class="col-12"><label for="compra-factura-numero" class="form-label">Número de factura</label><input id="compra-factura-numero" v-model="numeroFactura" class="form-control" maxlength="50" required /></div>
+                          <div class="col-12"><label for="compra-factura-numero" class="form-label">Número de factura</label><input v-texto-limpio id="compra-factura-numero" v-model="numeroFactura" class="form-control" maxlength="50" required /></div>
                           <div class="col-sm-6"><label for="compra-factura-fecha" class="form-label">Fecha</label><input id="compra-factura-fecha" v-model="fechaFactura" type="date" class="form-control" required /></div>
                           <div class="col-sm-6"><label for="compra-factura-impuestos" class="form-label">Impuestos (importe en $)</label><input id="compra-factura-impuestos" v-model="impuestosFactura" type="number" min="0" max="9999999999.99" step="0.01" class="form-control" required /></div>
                         </div>

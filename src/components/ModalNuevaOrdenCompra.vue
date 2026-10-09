@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import { vTextoLimpio } from '../directives/textoLimpio'
 import { computed, ref, watch } from 'vue'
+import { CANTIDAD_MAXIMA, importeValido } from '../utils/validacionesCompras'
 import { precioCompraProveedor } from '../services/comprasService'
 import type { Proveedor } from '../types/proveedor'
 import type { ProductoProveedor } from '../services/productosService'
@@ -97,7 +99,7 @@ function actualizarCantidad(evento: Event, item: NuevoOrdenCompraDetalle) {
   const campo = evento.target as HTMLInputElement
   const texto = campo.value
   const cantidad = Number(texto)
-  if (!/^\d*$/.test(texto) || !Number.isSafeInteger(cantidad)) {
+  if (!/^\d*$/.test(texto) || !Number.isSafeInteger(cantidad) || cantidad > CANTIDAD_MAXIMA) {
     campo.value = item.cantidad ? String(item.cantidad) : ''
     return
   }
@@ -114,12 +116,12 @@ function guardar() {
     errorValidacion.value = 'Cada producto puede aparecer una sola vez. Modificá la cantidad en su fila para pedir más unidades.'
     return
   }
-  if (!proveedorId.value || !fecha.value || !items.value.length || items.value.some(item =>
+  if (!proveedorSeleccionado.value || !proveedorId.value || !fecha.value || !items.value.length || items.value.some(item =>
     !productosDisponibles.value.some(producto => producto.producto_id === item.producto_id)
-    || !Number.isSafeInteger(item.cantidad) || item.cantidad <= 0
-    || !Number.isFinite(item.preciounitario) || item.preciounitario < 0
-  ) || !Number.isFinite(total.value) || total.value < 0) {
-    errorValidacion.value = 'Completá proveedor, fecha y al menos un producto con cantidad entera mayor a cero y precio válido.'
+    || !Number.isSafeInteger(item.cantidad) || item.cantidad <= 0 || item.cantidad > CANTIDAD_MAXIMA
+    || !importeValido(item.preciounitario) || !importeValido(subtotal(item))
+  ) || !importeValido(total.value)) {
+    errorValidacion.value = 'Revisá el proveedor y los productos. Las cantidades deben ser enteros de 1 a 2147483647 y los importes no pueden superar $9.999.999.999,99.'
     return
   }
   emit('guardar', {
@@ -171,7 +173,7 @@ watch(
 
                 <div class="col-md-8">
                   <label for="buscar-proveedor" class="form-label small">Buscar proveedor</label>
-                  <input
+                  <input maxlength="150" v-texto-limpio
                     id="buscar-proveedor"
                     v-model="busquedaProveedor"
                     type="search"
@@ -211,7 +213,7 @@ watch(
               <div v-for="(item, index) in items" :key="item.clave" class="row g-2 align-items-end border rounded p-2 mb-3">
                 <div class="col-md-4">
                   <label :for="`buscar-producto-${item.clave}`" class="form-label small">Buscar producto</label>
-                  <input
+                  <input maxlength="150" v-texto-limpio
                     :id="`buscar-producto-${item.clave}`"
                     v-model="item.busqueda"
                     type="search"
@@ -241,7 +243,7 @@ watch(
                     :id="`cantidad-${item.clave}`"
                     :value="item.cantidad || ''"
                     type="text"
-                    inputmode="numeric"
+                    inputmode="numeric" maxlength="10"
                     pattern="[0-9]*[1-9][0-9]*"
                     title="Ingresá una cantidad entera mayor a cero."
                     required

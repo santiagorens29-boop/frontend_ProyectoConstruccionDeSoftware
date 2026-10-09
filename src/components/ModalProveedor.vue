@@ -1,5 +1,7 @@
 <script setup lang="ts">
+import { vTextoLimpio } from '../directives/textoLimpio'
 import { computed, ref, watch } from 'vue'
+import { normalizarProveedor, validarProveedor } from '../utils/validacionesCompras'
 import type { Proveedor, NuevoProveedor } from '../types/proveedor'
 import type { ProductoProveedor } from '../services/productosService'
 
@@ -43,20 +45,11 @@ function cerrarModal() {
 
 function guardarProveedor() {
   if (props.guardando) return
-  errorValidacion.value = ''
-  if (!formulario.value.nombre.trim() || !formulario.value.apellido.trim()) {
-    errorValidacion.value = 'Completá nombre y apellido o denominación.'
-    return
-  }
-  if (!formulario.value.productos.length) {
-    errorValidacion.value = 'Seleccioná al menos un producto.'
-    return
-  }
-  emit('guardar', {
-    ...formulario.value,
-    nombre: formulario.value.nombre.trim(), apellido: formulario.value.apellido.trim(),
-    productos: [...new Set(formulario.value.productos)]
-  })
+  const datos = normalizarProveedor(formulario.value)
+  errorValidacion.value = validarProveedor(datos, props.productos.map(p => p.id))
+  if (errorValidacion.value) return
+  formulario.value = datos
+  emit('guardar', datos)
 }
 </script>
 
@@ -70,8 +63,8 @@ function guardarProveedor() {
       role="dialog"
       aria-modal="true"
     >
-      <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg">
-        <div class="modal-content shadow border-0 overflow-hidden">
+      <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable modal-lg modal-fullscreen-lg-down">
+        <form class="modal-content shadow border-0 overflow-hidden" @submit.prevent="guardarProveedor">
           <!-- Cabecera institucional -->
           <div class="modal-header modal-header-custom text-white px-4 py-3">
             <h5 class="modal-title fw-bold">
@@ -86,7 +79,7 @@ function guardarProveedor() {
           </div>
 
           <!-- Formulario -->
-          <form @submit.prevent="guardarProveedor">
+
             <div class="modal-body p-4 bg-white">
               <div v-if="error || errorValidacion" class="alert alert-danger" role="alert">{{ error || errorValidacion }}</div>
               <fieldset :disabled="guardando">
@@ -103,7 +96,7 @@ function guardarProveedor() {
 
                 <div class="col-md-6">
                   <label class="form-label fw-semibold text-dark">Nombre / Razón Social *</label>
-                  <input
+                  <input v-texto-limpio
                     v-model="formulario.nombre" maxlength="150"
                     type="text"
                     class="form-control custom-input"
@@ -114,7 +107,7 @@ function guardarProveedor() {
 
                 <div class="col-md-6">
                   <label class="form-label fw-semibold text-dark">Apellido / Denominación *</label>
-                  <input
+                  <input v-texto-limpio
                     v-model="formulario.apellido" maxlength="150"
                     type="text"
                     class="form-control custom-input"
@@ -125,7 +118,7 @@ function guardarProveedor() {
 
                 <div class="col-md-6">
                   <label class="form-label fw-semibold text-dark">CUIT *</label>
-                  <input
+                  <input v-texto-limpio
                     v-model="formulario.cuit"
                     type="text"
                     maxlength="13"
@@ -139,7 +132,7 @@ function guardarProveedor() {
 
                 <div class="col-md-6">
                   <label class="form-label fw-semibold text-dark">Email</label>
-                  <input
+                  <input v-texto-limpio
                     v-model="formulario.email" maxlength="150"
                     type="email"
                     class="form-control custom-input"
@@ -149,7 +142,7 @@ function guardarProveedor() {
 
                 <div class="col-md-6">
                   <label class="form-label fw-semibold text-dark">Teléfono</label>
-                  <input
+                  <input v-texto-limpio
                     v-model="formulario.telefono"
                     type="tel"
                     maxlength="50"
@@ -162,7 +155,7 @@ function guardarProveedor() {
 
                 <div class="col-md-6">
                   <label class="form-label fw-semibold text-dark">Dirección</label>
-                  <input
+                  <input v-texto-limpio
                     v-model="formulario.direccion" maxlength="200"
                     type="text"
                     class="form-control custom-input"
@@ -174,12 +167,12 @@ function guardarProveedor() {
                   <fieldset>
                     <legend class="fs-6 fw-semibold">Productos suministrados *</legend>
                     <label for="buscar-producto-proveedor" class="form-label small">Buscar por nombre, código o ID</label>
-                    <input id="buscar-producto-proveedor" v-model="busquedaProducto" type="search" class="form-control mb-2" @keydown.enter.prevent />
+                    <input maxlength="150" v-texto-limpio id="buscar-producto-proveedor" v-model="busquedaProducto" type="search" class="form-control mb-2" @keydown.enter.prevent />
                     <p class="small text-muted" role="status">{{ formulario.productos.length }} producto(s) seleccionado(s). Seleccioná al menos uno.</p>
                     <div class="border rounded p-3" style="max-height: 220px; overflow-y: auto">
                       <div v-for="producto in productosFiltrados" :key="producto.id" class="form-check mb-2">
                         <input :id="`proveedor-producto-${producto.id}`" v-model="formulario.productos" :value="producto.id" type="checkbox" class="form-check-input" />
-                        <label :for="`proveedor-producto-${producto.id}`" class="form-check-label">{{ producto.nombre }} — {{ producto.codigo }} (#{{ producto.id }})</label>
+                        <label :for="`proveedor-producto-${producto.id}`" class="form-check-label">{{ producto.nombre }} — COD: {{ producto.codigo || 'Sin código' }} · ID: {{ producto.id }}</label>
                       </div>
                       <p v-if="!productos.length" class="text-muted mb-0">No hay productos disponibles. Registrá productos en el catálogo antes de crear un proveedor.</p>
                       <p v-else-if="!productosFiltrados.length" class="text-muted mb-0">No se encontraron productos para esa búsqueda.</p>
@@ -203,14 +196,22 @@ function guardarProveedor() {
                 {{ guardando ? 'Guardando…' : proveedorAEditar ? 'Guardar Cambios' : 'Crear Proveedor' }}
               </button>
             </div>
-          </form>
-        </div>
+        </form>
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
+.modal-body { min-height: 0; overscroll-behavior: contain; }
+.modal-header, .modal-footer { flex-shrink: 0; }
+@media (max-width: 991.98px) {
+  .modal-dialog { height: 100vh; height: 100dvh; }
+  .modal-header, .modal-body, .modal-footer { padding-left: 1rem !important; padding-right: 1rem !important; }
+  .modal-footer { padding-bottom: max(1rem, env(safe-area-inset-bottom)) !important; }
+  .modal-footer .btn { flex: 1 1 auto; min-height: 44px; }
+}
+
 .modal-backdrop {
   opacity: 0.6;
 }

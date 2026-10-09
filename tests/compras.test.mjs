@@ -175,3 +175,50 @@ test('20 demo orders have valid relationships and totals and all six states', as
   assert.equal(mock.cargar().ordenes.length, 21)
   assert.equal(crearComprasMock().cargar().ordenes.length, 20)
 })
+
+
+test('supplier validation normalizes whitespace and checks fields and catalog membership', async () => {
+  const v = await import(moduleURL('../src/utils/validacionesCompras.ts'))
+  const base = { nombre: '  Materiales    Sur  ', apellido: ' SA ', cuit: '20-44215209-9', email: ' contacto@example.com ', telefono: ' +54  11 1234-5678 ', direccion: ' Calle   12 ', productos: [5] }
+  const valid = v.normalizarProveedor(base)
+  assert.equal(valid.nombre, 'Materiales Sur')
+  assert.equal(valid.email, 'contacto@example.com')
+  assert.equal(valid.direccion, 'Calle 12')
+  assert.equal(valid.cuit, '20442152099')
+  assert.equal(v.validarProveedor(valid, [5]), '')
+  for (const cambios of [{ nombre: ' '.repeat(100) }, { apellido: '\u200B' }, { cuit: '123' }, { cuit: 'abcdefghijk' }, { email: 'x@' }, { telefono: '---' }, { telefono: 'abc' }, { direccion: 'x'.repeat(201) }, { nombre: 'x'.repeat(151) }, { productos: [] }, { productos: [99] }, { productos: [5, 5] }]) {
+    assert.notEqual(v.validarProveedor(v.normalizarProveedor({ ...valid, ...cambios }), [5]), '')
+  }
+  assert.equal(v.validarProveedor({ ...valid, email: '', telefono: '', direccion: '' }, [5]), '')
+})
+
+test('invoice dates and money reject invalid or oversized values without rejecting zero', async () => {
+  const v = await import(moduleURL('../src/utils/validacionesCompras.ts'))
+  for (const importe of [0, 1.23, 0.1 + 0.2, 9999999999.99]) assert.equal(v.importeValido(importe), true)
+  for (const importe of [-1, NaN, Infinity, 1.001, 10000000000]) assert.equal(v.importeValido(importe), false)
+  assert.equal(v.fechaValida('2028-02-29'), true)
+  for (const fecha of ['', '2026-02-29', '2026-04-31', '2026-13-01', '0000-01-01']) assert.equal(v.fechaValida(fecha), false)
+})
+
+test('text inputs collapse whitespace before model updates and trim on blur', async () => {
+  const { vTextoLimpio } = await import(moduleURL('../src/directives/textoLimpio.ts'))
+  class Campo extends EventTarget {
+    value = ''; maxLength = 150; selectionStart = 0;
+    setSelectionRange(inicio) { this.selectionStart = inicio }
+  }
+  const campo = new Campo()
+  vTextoLimpio.mounted(campo)
+  campo.value = ' '.repeat(1000)
+  campo.dispatchEvent(new Event('input'))
+  assert.equal(campo.value, '')
+  campo.value = '  Loma     Negra  '
+  campo.selectionStart = campo.value.length
+  campo.dispatchEvent(new Event('input'))
+  assert.equal(campo.value, 'Loma Negra ')
+  campo.dispatchEvent(new Event('blur'))
+  assert.equal(campo.value, 'Loma Negra')
+  campo.value = 'x'.repeat(200)
+  campo.dispatchEvent(new Event('input'))
+  assert.equal(campo.value.length, 150)
+  vTextoLimpio.beforeUnmount(campo)
+})
