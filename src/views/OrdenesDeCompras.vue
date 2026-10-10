@@ -7,7 +7,8 @@ import ModalNuevaOrdenCompra from '../components/ModalNuevaOrdenCompra.vue'
 import ModalVerOrdenesCompra from '../components/ModalVerOrdenesCompra.vue'
 import { normalizarBusqueda } from '../utils/busqueda'
 import { mensajeErrorApi } from '../utils/erroresApi'
-import { obtenerProductosProveedor, type ProductoProveedor } from '../services/productosService'
+import type { ProductoProveedor } from '../services/productosService'
+import { obtenerCatalogoProductosProveedor } from '../services/proveedoresService'
 import { actualizarEstadoCompra, claseEstadoCompra, buscarEstadoCompra, normalizarEstadoCompra, crearOrdenCompra, obtenerProveedores, enviarOrdenAFinanzas, type DatosFacturaCompra, etiquetaEstadoCompra, obtenerEstadosCompra, obtenerFacturasCompra, obtenerOrdenesCompra, presentarDetalles, presentarOrden, transicionPermitida, type OrdenCompraAPI } from '../services/comprasService'
 import type { Proveedor } from '../types/proveedor'
 import type { EstadoCompra, FacturaCompra, NuevaOrdenCompra } from '../types/compra'
@@ -103,7 +104,7 @@ async function cargar() {
   errorConsulta.value = ''
   try {
     const [ordenes, catalogoProveedores, catalogoProductos, catalogoEstados] = await Promise.all([
-      obtenerOrdenesCompra(), obtenerProveedores(), obtenerProductosProveedor(), obtenerEstadosCompra()
+      obtenerOrdenesCompra(), obtenerProveedores(), obtenerCatalogoProductosProveedor(), obtenerEstadosCompra()
     ])
     const ejemplos = comprasMock?.cargar()
     ordenesAPI.value = [...ordenes, ...(ejemplos?.ordenes ?? [])]

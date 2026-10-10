@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { vTextoLimpio } from '../directives/textoLimpio'
 import { computed, ref, watch } from 'vue'
-import { normalizarProveedor, validarProveedor } from '../utils/validacionesCompras'
+import { importeValido, normalizarProveedor, validarProveedor } from '../utils/validacionesCompras'
+import { productosConPrecioDisponible } from '../services/proveedoresService'
 import type { Proveedor, NuevoProveedor } from '../types/proveedor'
 import type { ProductoProveedor } from '../services/productosService'
 
@@ -21,6 +22,8 @@ const formularioVacio = (): NuevoProveedor => ({
   nombre: '', apellido: '', cuit: '', email: '', telefono: '', direccion: '', productos: []
 })
 const formulario = ref<NuevoProveedor>(formularioVacio())
+const preciosCompra = ref<Record<number, number | string | null>>({})
+const productosNoDisponibles = computed(() => formulario.value.productos.filter(id => !props.productos.some(p => p.id === id)))
 const busquedaProducto = ref('')
 const errorValidacion = ref('')
 const productosFiltrados = computed(() => {
@@ -35,6 +38,7 @@ watch(() => [props.mostrar, props.proveedorAEditar] as const, ([mostrar, proveed
     email: proveedor.email, telefono: proveedor.telefono, direccion: proveedor.direccion,
     productos: [...proveedor.productos]
   } : formularioVacio()
+  preciosCompra.value = { ...proveedor?.preciosCompra }
   busquedaProducto.value = ''
   errorValidacion.value = ''
 }, { immediate: true })
@@ -48,6 +52,13 @@ function guardarProveedor() {
   const datos = normalizarProveedor(formulario.value)
   errorValidacion.value = validarProveedor(datos, props.productos.map(p => p.id))
   if (errorValidacion.value) return
+  if (productosConPrecioDisponible.value) {
+    if (datos.productos.some(id => preciosCompra.value[id] == null || String(preciosCompra.value[id]).trim() === '' || !importeValido(Number(preciosCompra.value[id])))) {
+      errorValidacion.value = 'Ingresá un precio de compra válido para cada producto seleccionado.'
+      return
+    }
+    datos.preciosCompra = Object.fromEntries(datos.productos.map(id => [id, Number(preciosCompra.value[id])]))
+  }
   formulario.value = datos
   emit('guardar', datos)
 }
@@ -169,10 +180,20 @@ function guardarProveedor() {
                     <label for="buscar-producto-proveedor" class="form-label small">Buscar por nombre, código o ID</label>
                     <input maxlength="150" v-texto-limpio id="buscar-producto-proveedor" v-model="busquedaProducto" type="search" class="form-control mb-2" @keydown.enter.prevent />
                     <p class="small text-muted" role="status">{{ formulario.productos.length }} producto(s) seleccionado(s). Seleccioná al menos uno.</p>
+                    <div v-if="productosNoDisponibles.length" class="alert alert-warning">
+                      <p>Estos productos asignados no están disponibles en el catálogo actual:</p>
+                      <div v-for="id in productosNoDisponibles" :key="id" class="d-flex align-items-center gap-2 mb-1">
+                        <span>Producto #{{ id }}</span><button type="button" class="btn btn-sm btn-outline-danger" @click="formulario.productos = formulario.productos.filter(productoId => productoId !== id)">Quitar de la selección</button>
+                      </div>
+                    </div>
                     <div class="border rounded p-3" style="max-height: 220px; overflow-y: auto">
                       <div v-for="producto in productosFiltrados" :key="producto.id" class="form-check mb-2">
                         <input :id="`proveedor-producto-${producto.id}`" v-model="formulario.productos" :value="producto.id" type="checkbox" class="form-check-input" />
                         <label :for="`proveedor-producto-${producto.id}`" class="form-check-label">{{ producto.nombre }} — COD: {{ producto.codigo || 'Sin código' }} · ID: {{ producto.id }}</label>
+                        <div v-if="productosConPrecioDisponible && formulario.productos.includes(producto.id)" class="mt-2 mb-3">
+                          <label :for="`proveedor-precio-${producto.id}`" class="form-label small">Precio de compra ($)</label>
+                          <input :id="`proveedor-precio-${producto.id}`" v-model="preciosCompra[producto.id]" type="number" min="0" max="9999999999.99" step="0.01" required class="form-control" />
+                        </div>
                       </div>
                       <p v-if="!productos.length" class="text-muted mb-0">No hay productos disponibles. Registrá productos en el catálogo antes de crear un proveedor.</p>
                       <p v-else-if="!productosFiltrados.length" class="text-muted mb-0">No se encontraron productos para esa búsqueda.</p>

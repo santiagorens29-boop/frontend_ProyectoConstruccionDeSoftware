@@ -3,7 +3,8 @@ import { vTextoLimpio } from '../directives/textoLimpio'
 import { ref, computed, onMounted } from 'vue'
 import type { Proveedor, NuevoProveedor } from '../types/proveedor'
 import { obtenerProveedores, crearProveedor, actualizarProveedor, relacionMultipleDisponible } from '../services/proveedoresService'
-import { obtenerProductosProveedor, type ProductoProveedor } from '../services/productosService'
+import type { ProductoProveedor } from '../services/productosService'
+import { obtenerCatalogoProductosProveedor } from '../services/proveedoresService'
 import { mensajeErrorApi } from '../utils/erroresApi'
 import ModalProveedor from '../components/ModalProveedor.vue'
 
@@ -40,7 +41,7 @@ async function cargarProveedores() {
   cargando.value = true
   mensajeError.value = ''
   try {
-    const [proveedores, catalogo] = await Promise.all([obtenerProveedores(), obtenerProductosProveedor()])
+    const [proveedores, catalogo] = await Promise.all([obtenerProveedores(), obtenerCatalogoProductosProveedor()])
     listaProveedores.value = proveedores
     productos.value = catalogo
   } catch (error) {
