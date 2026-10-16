@@ -41,6 +41,19 @@ test('new orders are posted in one request with nested details and no mock field
   }
   assert.deepEqual(await compras.crearOrdenCompra({ cabecera: { proveedor_id: 12, fecha: '2026-10-01', total: 21 }, detalles: [{ producto_id: 5, cantidad: 2, preciounitario: 10.5 }] }), orden)
 })
+test('editing sends product changes without changing the order date or state and propagates rejection', async () => {
+  const datos = { cabecera: { proveedor_id: 12, fecha: '2026-10-01', total: 31.5 }, detalles: [{ producto_id: 5, cantidad: 3, preciounitario: 10.5 }] }
+  handler = config => {
+    assert.equal(config.method, 'patch')
+    assert.equal(config.url, '/compras/ordenes-compra/41/')
+    assert.deepEqual(JSON.parse(config.data), { proveedor: 12, detalles: [{ producto_id: 5, cantidad: 3, precio_unitario: '10.50' }] })
+    return response(config, { ...orden, total: '31.50' })
+  }
+  assert.equal((await compras.editarOrdenCompra(41, datos)).total, '31.50')
+  handler = config => { throw new axios.AxiosError('Solo se puede modificar una orden pendiente.', 'ERR_BAD_REQUEST', config, null, { status: 400 }) }
+  await assert.rejects(compras.editarOrdenCompra(41, datos), error => error.response.status === 400)
+})
+
 test('state update sends the server catalog ID and preserves failures', async () => {
   handler = config => {
     assert.equal(config.method, 'patch')

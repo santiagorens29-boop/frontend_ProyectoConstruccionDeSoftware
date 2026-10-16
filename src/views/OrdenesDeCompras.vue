@@ -8,7 +8,7 @@ import { normalizarBusqueda } from '../utils/busqueda'
 import { mensajeErrorApi } from '../utils/erroresApi'
 import type { ProductoProveedor } from '../services/productosService'
 import { obtenerCatalogoProductosProveedor } from '../services/proveedoresService'
-import { actualizarEstadoCompra, claseEstadoCompra, buscarEstadoCompra, normalizarEstadoCompra, crearOrdenCompra, obtenerProveedores, enviarOrdenAFinanzas, type DatosFacturaCompra, etiquetaEstadoCompra, obtenerEstadosCompra, obtenerFacturasCompra, obtenerOrdenesCompra, presentarDetalles, presentarOrden, transicionPermitida, type OrdenCompraAPI } from '../services/comprasService'
+import { editarOrdenCompra, actualizarEstadoCompra, claseEstadoCompra, buscarEstadoCompra, normalizarEstadoCompra, crearOrdenCompra, obtenerProveedores, enviarOrdenAFinanzas, type DatosFacturaCompra, etiquetaEstadoCompra, obtenerEstadosCompra, obtenerFacturasCompra, obtenerOrdenesCompra, presentarDetalles, presentarOrden, transicionPermitida, type OrdenCompraAPI } from '../services/comprasService'
 import type { Proveedor } from '../types/proveedor'
 import type { EstadoCompra, FacturaCompra, NuevaOrdenCompra } from '../types/compra'
 
@@ -28,6 +28,7 @@ const errorEstado = ref('')
 const errorFacturas = ref('')
 const mensaje = ref('')
 const mostrarNuevaOrden = ref(false)
+const ordenAEditar = ref<OrdenCompraAPI | null>(null)
 const mostrarConsultaOrdenes = ref(false)
 const ordenConsultaId = ref<number | null>(null)
 const filtroBusqueda = ref('')
@@ -106,6 +107,7 @@ async function cargar() {
 }
 
 async function abrirNuevaOrden() {
+  ordenAEditar.value = null
   if (accionesBloqueadas.value) return
   await cargar()
   if (errorConsulta.value) return
@@ -130,15 +132,34 @@ function abrirConsulta(id: number) {
   void cargarFacturas()
 }
 
+async function abrirEdicion(id: number) {
+  if (accionesBloqueadas.value) return
+  await cargar()
+  if (errorConsulta.value) { errorEstado.value = errorConsulta.value; return }
+  if (cabeceras.value.find(o => o.ordencompra_id === id)?.estado !== 'pendiente') {
+    errorEstado.value = 'Solo se pueden editar órdenes en estado Pendiente.'
+    return
+  }
+  ordenAEditar.value = ordenesAPI.value.find(o => o.ordencompra_id === id) ?? null
+  errorGuardado.value = ''
+  mostrarConsultaOrdenes.value = false
+  mostrarNuevaOrden.value = true
+}
+
 async function guardarOrden(datos: NuevaOrdenCompra) {
   if (guardando.value) return
   guardando.value = true
   errorGuardado.value = ''
   try {
-    const orden = await crearOrdenCompra(datos)
-    ordenesAPI.value.unshift(orden)
+    const id = ordenAEditar.value?.ordencompra_id
+    if (id && cabeceras.value.find(o => o.ordencompra_id === id)?.estado !== 'pendiente') throw new Error('Solo se pueden editar órdenes en estado Pendiente.')
+    const orden = id ? await editarOrdenCompra(id, datos) : await crearOrdenCompra(datos)
+    if (id) {
+      const indice = ordenesAPI.value.findIndex(o => o.ordencompra_id === id)
+      if (indice !== -1) ordenesAPI.value[indice] = orden
+    } else ordenesAPI.value.unshift(orden)
     mostrarNuevaOrden.value = false
-    mensaje.value = `Orden #${orden.ordencompra_id} creada correctamente.`
+    mensaje.value = `Orden #${orden.ordencompra_id} ${id ? 'actualizada' : 'creada'} correctamente.`
   } catch (error) { errorGuardado.value = (error instanceof Error && !('isAxiosError' in error) ? error.message : mensajeErrorApi(error)) }
   finally { guardando.value = false }
 }
@@ -285,8 +306,8 @@ onMounted(cargar)
       <span class="text-muted small" role="status">Mostrando {{ ordenesVisibles.length }} de {{ ordenesFiltradas.length }} órdenes</span>
       <button v-if="hayMasOrdenes" type="button" class="btn btn-outline-coralon" :disabled="accionesBloqueadas" @click="cargarMas">Cargar más</button>
     </div>
-    <ModalNuevaOrdenCompra :mostrar="mostrarNuevaOrden" :guardando="guardando" :error="errorGuardado" :proveedores="proveedores" :productos="productos" @cerrar="mostrarNuevaOrden = false" @guardar="guardarOrden" />
-    <ModalVerOrdenesCompra :mostrar="mostrarConsultaOrdenes" :orden-inicial-id="ordenConsultaId" :ordenes="cabeceras" :detalles="detalles" :proveedores="proveedores" :productos="productos" :estados="estados" :facturas="facturas" :cargando-facturas="cargandoFacturas" :error-facturas="errorFacturas" :actualizando="accionesBloqueadas" :error="errorEstado" :mensaje="mensaje" @cerrar="mostrarConsultaOrdenes = false" @cambiar-estado="cambiarEstado" @enviar-a-finanzas="enviarAFinanzas" @reintentar-facturas="cargarFacturas" />
+    <ModalNuevaOrdenCompra :orden-a-editar="ordenAEditar" :mostrar="mostrarNuevaOrden" :guardando="guardando" :error="errorGuardado" :proveedores="proveedores" :productos="productos" @cerrar="mostrarNuevaOrden = false" @guardar="guardarOrden" />
+    <ModalVerOrdenesCompra @editar="abrirEdicion" :mostrar="mostrarConsultaOrdenes" :orden-inicial-id="ordenConsultaId" :ordenes="cabeceras" :detalles="detalles" :proveedores="proveedores" :productos="productos" :estados="estados" :facturas="facturas" :cargando-facturas="cargandoFacturas" :error-facturas="errorFacturas" :actualizando="accionesBloqueadas" :error="errorEstado" :mensaje="mensaje" @cerrar="mostrarConsultaOrdenes = false" @cambiar-estado="cambiarEstado" @enviar-a-finanzas="enviarAFinanzas" @reintentar-facturas="cargarFacturas" />
     <ModalConfirmacion v-if="mensajeConfirmacion" :mensaje="mensajeConfirmacion" @resolver="resolverCambioEstado" />
   </div>
 </template>
