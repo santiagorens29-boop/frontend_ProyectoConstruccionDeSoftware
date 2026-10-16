@@ -8,7 +8,6 @@ import { obtenerTodasLasPaginas } from './paginacion'
 const RUTA_PROVEEDORES = '/compras/proveedores/' // Ajustar la ruta si el backend usa '/proveedores/' o similar
 
 export const relacionMultipleDisponible = ref(true)
-export const productosConPrecioDisponible = ref(false)
 type ProductoAsociadoAPI = number | string | { producto_id: number | string; precio_compra: string | number | null }
 
 type ProveedorAPI = Omit<Proveedor, 'productos'> & { productos?: ProductoAsociadoAPI[]; producto_id?: number | string | null }
@@ -25,7 +24,6 @@ function presentarProveedor(datos: ProveedorAPI): Proveedor {
 export async function obtenerProveedores(): Promise<Proveedor[]> {
   const datos = await obtenerTodasLasPaginas<ProveedorAPI>(RUTA_PROVEEDORES)
   relacionMultipleDisponible.value = !datos.some(p => !Array.isArray(p.productos) && 'producto_id' in p)
-  productosConPrecioDisponible.value = datos.some(p => p.productos?.some(item => typeof item === 'object'))
   return datos.map(presentarProveedor)
 }
 
@@ -73,7 +71,7 @@ export async function obtenerCatalogoProductosProveedor(): Promise<ProductoProve
 
 function prepararProveedor(datos: Partial<NuevoProveedor>) {
   const { preciosCompra, ...payload } = datos
-  if (!datos.productos || !productosConPrecioDisponible.value) return payload
+  if (!datos.productos) return payload
   return { ...payload, productos: datos.productos.map(producto_id => {
     const precio = preciosCompra?.[producto_id]
     if (precio == null || !importeValido(precio)) throw new Error(`Ingresá un precio de compra válido para el producto #${producto_id}.`)

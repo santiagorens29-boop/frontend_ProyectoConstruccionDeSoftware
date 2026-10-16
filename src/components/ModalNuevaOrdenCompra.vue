@@ -262,7 +262,7 @@ watch(
                   <span class="d-block py-2 fw-semibold">{{ moneda(subtotal(item)) }}</span>
                 </div>
                 <div class="col-md-1">
-                  <button type="button" class="btn btn-outline-danger w-100" :aria-label="`Quitar producto ${index + 1}`" :disabled="items.length === 1" @click="items.splice(index, 1)">×</button>
+                  <button type="button" class="btn btn-outline-danger w-100" :aria-label="`Quitar producto ${index + 1}`" @click="items.splice(index, 1)">×</button>
                 </div>
               </div>
               </fieldset>
@@ -271,7 +271,7 @@ watch(
           </div>
           <div class="modal-footer bg-light px-4 py-3">
             <button type="button" class="btn btn-secondary px-3" :disabled="guardando" @click="cerrarModal">Cerrar</button>
-            <button type="submit" class="btn btn-coralon fw-semibold" :disabled="guardando || !proveedorSeleccionado">
+            <button type="submit" class="btn btn-coralon fw-semibold" :disabled="guardando || !proveedorSeleccionado || !items.length">
               {{ guardando ? 'Guardando…' : 'Guardar Orden' }}
             </button>
           </div>

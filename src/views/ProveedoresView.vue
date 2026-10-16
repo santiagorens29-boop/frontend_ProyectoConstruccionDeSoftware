@@ -65,7 +65,10 @@ const proveedoresFiltrados = computed(() => {
   })
 })
 
-function abrirModalCrear() {
+async function abrirModalCrear() {
+  if (cargando.value || guardando.value) return
+  await cargarProveedores()
+  if (mensajeError.value || !relacionMultipleDisponible.value) return
   proveedorParaEditar.value = null
   errorGuardado.value = ''
   mostrarModal.value = true
@@ -241,7 +244,7 @@ onMounted(cargarProveedores)
               style="cursor: pointer;"
               @click="abrirModalEditar(proveedor)"
             >
-              <td class="ps-3 fw-bold"><button type="button" class="btn btn-link p-0 fw-bold" :disabled="cargando || guardando || !relacionMultipleDisponible" :aria-label="`Editar proveedor ${proveedor.nombre} ${proveedor.apellido}`" @click.stop="abrirModalEditar(proveedor)">{{ proveedor.proveedor_id }}</button></td>
+              <td class="ps-3 fw-bold"><button type="button" class="btn p-0 fw-bold text-reset text-decoration-none" :disabled="cargando || guardando || !relacionMultipleDisponible" :aria-label="`Editar proveedor ${proveedor.nombre} ${proveedor.apellido}`" @click.stop="abrirModalEditar(proveedor)">{{ proveedor.proveedor_id }}</button></td>
               <td class="fw-semibold">{{ proveedor.nombre }}</td>
               <td>{{ proveedor.apellido }}</td>
               <td><span class="badge badge-cuit font-monospace">{{ proveedor.cuit }}</span></td>

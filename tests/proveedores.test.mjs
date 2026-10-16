@@ -48,23 +48,25 @@ test('legacy server records retain real associations and block incompatible writ
   assert.equal(proveedores.relacionMultipleDisponible.value, true)
 })
 
-test('create and edit send multiple product IDs and propagate validation errors', async () => {
+test('first supplier sends purchase prices even when the supplier list is empty', async () => {
+  handler = config => response(config, { results: [], next: null })
+  assert.deepEqual(await proveedores.obtenerProveedores(), [])
   const payload = { nombre: 'Proveedor', apellido: 'SA', cuit: '30111000111', email: '', telefono: '', direccion: '', productos: [2, 7] }
   handler = config => {
     assert.equal(config.method, 'post')
-    assert.deepEqual(JSON.parse(config.data), payload)
+    assert.deepEqual(JSON.parse(config.data), { ...payload, productos: [{ producto_id: 2, precio_compra: '12.50' }, { producto_id: 7, precio_compra: '0.00' }] })
     return response(config, { proveedor_id: 9, ...payload })
   }
-  assert.deepEqual((await proveedores.crearProveedor(payload)).productos, [2, 7])
+  assert.deepEqual((await proveedores.crearProveedor({ ...payload, preciosCompra: { 2: 12.5, 7: 0 } })).productos, [2, 7])
   handler = config => {
     assert.equal(config.method, 'patch')
     assert.equal(config.url, '/compras/proveedores/9/')
-    assert.deepEqual(JSON.parse(config.data), { productos: [7, 8] })
+    assert.deepEqual(JSON.parse(config.data), { productos: [{ producto_id: 7, precio_compra: '0.00' }, { producto_id: 8, precio_compra: '20.00' }] })
     return response(config, { proveedor_id: 9, ...payload, productos: [7, 8] })
   }
-  assert.deepEqual((await proveedores.actualizarProveedor(9, { productos: [7, 8] })).productos, [7, 8])
+  assert.deepEqual((await proveedores.actualizarProveedor(9, { productos: [7, 8], preciosCompra: { 7: 0, 8: 20 } })).productos, [7, 8])
   handler = config => { throw new axios.AxiosError('Invalid', 'ERR_BAD_REQUEST', config, null, { status: 400, data: { cuit: ['Ya existe un proveedor con ese CUIT.'] } }) }
-  await assert.rejects(proveedores.crearProveedor(payload), error => error.response.status === 400)
+  await assert.rejects(proveedores.crearProveedor({ ...payload, preciosCompra: { 2: 12.5, 7: 0 } }), error => error.response.status === 400)
 })
 
 
@@ -83,7 +85,6 @@ test('editing normalizes associated product IDs and preserves purchase prices in
   const [supplier] = await proveedores.obtenerProveedores()
   assert.deepEqual(supplier.productos, [2, 7])
   assert.deepEqual(supplier.preciosCompra, { 2: 12.5, 7: 0 })
-  assert.equal(proveedores.productosConPrecioDisponible.value, true)
   handler = config => {
     assert.equal(config.method, 'patch')
     assert.deepEqual(JSON.parse(config.data), { productos: [{ producto_id: 2, precio_compra: '12.50' }, { producto_id: 7, precio_compra: '0.00' }] })

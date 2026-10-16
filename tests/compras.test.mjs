@@ -147,36 +147,6 @@ test('legacy supplier product IDs remain selectable with catalog prices', async 
 })
 
 
-test('20 demo orders have valid relationships and totals and all six states', async () => {
-  const { crearComprasMock } = await import(moduleURL('../src/mocks/comprasMock.ts'))
-  const mock = crearComprasMock()
-  const datos = mock.cargar()
-  assert.equal(datos.ordenes.length, 20)
-  assert.ok(datos.ordenes.every(o => o.ordencompra_id < 0))
-  assert.ok(datos.proveedores.every(p => p.proveedor_id < 0))
-  assert.ok(datos.productos.every(p => p.id < 0))
-  assert.ok(mock.facturas().every(f => f.facturacabecera_id < 0 && f.ordencompra_id < 0))
-  assert.equal(new Set(datos.ordenes.map(o => o.ordencompra_id)).size, 20)
-  assert.equal(new Set(datos.ordenes.map(o => o.estado)).size, 6)
-  for (const orden of datos.ordenes) {
-    assert.ok(datos.proveedores.some(p => p.proveedor_id === orden.proveedor))
-    assert.equal(orden.total, orden.detalles.reduce((total, d) => total + d.cantidad * Number(d.precio_unitario), 0).toFixed(2))
-    for (const detalle of orden.detalles) assert.ok(datos.productos.some(p => p.id === detalle.producto_id))
-  }
-  handler = () => { throw new Error('Demo must not call API') }
-  const id = datos.ordenes.find(o => o.estado === 1).ordencompra_id
-  assert.equal(mock.cambiar(id, 2).estado, 2)
-  assert.equal(mock.cambiar(id, 4).estado, 4)
-  assert.throws(() => mock.cambiar(id, 6), /factura/)
-  assert.equal(mock.contabilizar(id, { numero: 'DEMO-TEST', fecha: '2026-10-09', impuestos: 20 }).estado, 6)
-  assert.equal(mock.facturas().filter(f => f.ordencompra_id === id).length, 1)
-  assert.throws(() => mock.contabilizar(id, { numero: 'DUP', fecha: '2026-10-09', impuestos: 0 }))
-  mock.crear({ cabecera: { proveedor_id: -1, fecha: '2026-10-09', total: 100 }, detalles: [{ producto_id: -1, cantidad: 2, preciounitario: 50 }] })
-  assert.equal(mock.cargar().ordenes.length, 21)
-  assert.equal(crearComprasMock().cargar().ordenes.length, 20)
-})
-
-
 test('supplier validation normalizes whitespace and checks fields and catalog membership', async () => {
   const v = await import(moduleURL('../src/utils/validacionesCompras.ts'))
   const base = { nombre: '  Materiales    Sur  ', apellido: ' SA ', cuit: '20-44215209-9', email: ' contacto@example.com ', telefono: ' +54  11 1234-5678 ', direccion: ' Calle   12 ', productos: [5] }

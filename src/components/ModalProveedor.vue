@@ -2,7 +2,6 @@
 import { vTextoLimpio } from '../directives/textoLimpio'
 import { computed, ref, watch } from 'vue'
 import { importeValido, normalizarProveedor, validarProveedor } from '../utils/validacionesCompras'
-import { productosConPrecioDisponible } from '../services/proveedoresService'
 import type { Proveedor, NuevoProveedor } from '../types/proveedor'
 import type { ProductoProveedor } from '../services/productosService'
 
@@ -47,18 +46,28 @@ function cerrarModal() {
   if (!props.guardando) emit('cerrar')
 }
 
+function quitarEspacios(evento: Event) {
+  if ((evento as InputEvent).isComposing) return
+  const campo = evento.target as HTMLInputElement
+  const original = campo.value
+  const cursor = campo.selectionStart
+  campo.value = original.replace(/[\s\u200B-\u200D\uFEFF]/g, '')
+  if (cursor !== null && campo.value !== original) {
+    const posicion = original.slice(0, cursor).replace(/[\s\u200B-\u200D\uFEFF]/g, '').length
+    campo.setSelectionRange(posicion, posicion)
+  }
+}
+
 function guardarProveedor() {
   if (props.guardando) return
   const datos = normalizarProveedor(formulario.value)
   errorValidacion.value = validarProveedor(datos, props.productos.map(p => p.id))
   if (errorValidacion.value) return
-  if (productosConPrecioDisponible.value) {
-    if (datos.productos.some(id => preciosCompra.value[id] == null || String(preciosCompra.value[id]).trim() === '' || !importeValido(Number(preciosCompra.value[id])))) {
-      errorValidacion.value = 'Ingresá un precio de compra válido para cada producto seleccionado.'
-      return
-    }
-    datos.preciosCompra = Object.fromEntries(datos.productos.map(id => [id, Number(preciosCompra.value[id])]))
+  if (datos.productos.some(id => preciosCompra.value[id] == null || String(preciosCompra.value[id]).trim() === '' || !importeValido(Number(preciosCompra.value[id])))) {
+    errorValidacion.value = 'Ingresá un precio de compra válido para cada producto seleccionado.'
+    return
   }
+  datos.preciosCompra = Object.fromEntries(datos.productos.map(id => [id, Number(preciosCompra.value[id])]))
   formulario.value = datos
   emit('guardar', datos)
 }
@@ -129,7 +138,7 @@ function guardarProveedor() {
 
                 <div class="col-md-6">
                   <label class="form-label fw-semibold text-dark">CUIT *</label>
-                  <input v-texto-limpio
+                  <input @input.capture="quitarEspacios"
                     v-model="formulario.cuit"
                     type="text"
                     maxlength="13"
@@ -143,7 +152,7 @@ function guardarProveedor() {
 
                 <div class="col-md-6">
                   <label class="form-label fw-semibold text-dark">Email</label>
-                  <input v-texto-limpio
+                  <input @input.capture="quitarEspacios"
                     v-model="formulario.email" maxlength="150"
                     type="email"
                     class="form-control custom-input"
@@ -153,7 +162,7 @@ function guardarProveedor() {
 
                 <div class="col-md-6">
                   <label class="form-label fw-semibold text-dark">Teléfono</label>
-                  <input v-texto-limpio
+                  <input @input.capture="quitarEspacios"
                     v-model="formulario.telefono"
                     type="tel"
                     maxlength="50"
@@ -190,7 +199,7 @@ function guardarProveedor() {
                       <div v-for="producto in productosFiltrados" :key="producto.id" class="form-check mb-2">
                         <input :id="`proveedor-producto-${producto.id}`" v-model="formulario.productos" :value="producto.id" type="checkbox" class="form-check-input" />
                         <label :for="`proveedor-producto-${producto.id}`" class="form-check-label">{{ producto.nombre }} — COD: {{ producto.codigo || 'Sin código' }} · ID: {{ producto.id }}</label>
-                        <div v-if="productosConPrecioDisponible && formulario.productos.includes(producto.id)" class="mt-2 mb-3">
+                        <div v-if="formulario.productos.includes(producto.id)" class="mt-2 mb-3">
                           <label :for="`proveedor-precio-${producto.id}`" class="form-label small">Precio de compra ($)</label>
                           <input :id="`proveedor-precio-${producto.id}`" v-model="preciosCompra[producto.id]" type="number" min="0" max="9999999999.99" step="0.01" required class="form-control" />
                         </div>
