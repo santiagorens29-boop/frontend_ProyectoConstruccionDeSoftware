@@ -9,6 +9,8 @@ import {
   mensajeDeError
 } from '../services/rubrosService'
 import ModalRubro from '../components/ModalRubro.vue'
+import ModalConfirmacion from '../components/ModalConfirmacion.vue'
+import { avisoError } from '../utils/avisos'
 
 const listaRubros = ref<RubroAPI[]>([])
 const cargando = ref(false)
@@ -93,10 +95,16 @@ async function guardarRubro(datos: NuevoRubro) {
   }
 }
 
-async function eliminarSeleccionado() {
-  const rubro = rubroSeleccionado.value
-  if (!rubro) return
-  if (!window.confirm(`¿Eliminar el rubro "${rubro.nombre}"?`)) return
+const rubroParaEliminar = ref<RubroAPI | null>(null)
+
+function pedirConfirmacionEliminar() {
+  rubroParaEliminar.value = rubroSeleccionado.value
+}
+
+async function resolverEliminar(confirmado: boolean) {
+  const rubro = rubroParaEliminar.value
+  rubroParaEliminar.value = null
+  if (!confirmado || !rubro) return
 
   mensajeError.value = ''
   try {
@@ -105,9 +113,9 @@ async function eliminarSeleccionado() {
     rubroSeleccionado.value = null
     mostrarExito('Rubro eliminado correctamente.')
   } catch (error) {
-    mensajeError.value = mensajeDeError(
-      error,
-      'No se pudo eliminar el rubro. Verificá que no tenga productos asociados.'
+    avisoError(
+      mensajeDeError(error, 'Verificá que el rubro no tenga productos asociados.'),
+      'No se pudo eliminar el rubro'
     )
   }
 }
@@ -125,7 +133,7 @@ async function eliminarSeleccionado() {
         <button
           class="btn btn-outline-danger fw-semibold px-3"
           :disabled="!rubroSeleccionado"
-          @click="eliminarSeleccionado"
+          @click="pedirConfirmacionEliminar"
         >
           Eliminar
         </button>
@@ -194,6 +202,14 @@ async function eliminarSeleccionado() {
         </table>
       </div>
     </div>
+
+    <ModalConfirmacion
+      v-if="rubroParaEliminar"
+      titulo="Eliminar rubro"
+      texto-confirmar="Eliminar"
+      :mensaje="`¿Eliminar el rubro &quot;${rubroParaEliminar.nombre}&quot;?`"
+      @resolver="resolverEliminar"
+    />
 
     <ModalRubro
       :mostrar="mostrarModal"

@@ -11,6 +11,7 @@ import {
 } from '../services/productosService'
 import { obtenerRubros } from '../services/rubrosService'
 import { mensajeErrorApi } from '../utils/erroresApi'
+import { avisoError } from '../utils/avisos'
 import ModalProducto from '../components/ModalProducto.vue'
 import ModalMovimientos from '../components/ModalMovimientos.vue'
 
@@ -107,7 +108,7 @@ async function confirmarBaja() {
     mensajeExito.value = `El producto "${productoParaInactivar.value.nombre}" fue inactivado correctamente.`
     cancelarBaja()
   } catch (error) {
-    alert(mensajeErrorApi(error))
+    avisoError(mensajeErrorApi(error), 'No se pudo inactivar el producto')
   } finally {
     procesandoBaja.value = false
   }
