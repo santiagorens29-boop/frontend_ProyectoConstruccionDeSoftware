@@ -19,8 +19,6 @@ const rubroSeleccionado = ref<RubroAPI | null>(null)
 const mostrarModal = ref(false)
 const rubroParaEditar = ref<RubroAPI | null>(null)
 const errorModal = ref('')
-const mensajeExito = ref('')
-const mensajeError = ref('')
 
 const rubrosFiltrados = computed(() => {
   const busqueda = filtroBusqueda.value.toLowerCase().trim()
@@ -34,22 +32,16 @@ const rubrosFiltrados = computed(() => {
 
 async function cargarRubros() {
   cargando.value = true
-  mensajeError.value = ''
   try {
     listaRubros.value = await listarRubros()
   } catch (error) {
-    mensajeError.value = mensajeDeError(error, 'No se pudieron cargar los rubros.')
+    alerta.error('No se pudieron cargar los rubros', mensajeDeError(error, 'Intentá nuevamente en unos instantes.'))
   } finally {
     cargando.value = false
   }
 }
 
 onMounted(cargarRubros)
-
-function mostrarExito(texto: string) {
-  mensajeExito.value = texto
-  setTimeout(() => (mensajeExito.value = ''), 3000)
-}
 
 function seleccionarFila(rubro: RubroAPI) {
   rubroSeleccionado.value = rubroSeleccionado.value?.id === rubro.id ? null : rubro
@@ -82,11 +74,11 @@ async function guardarRubro(datos: NuevoRubro) {
       const index = listaRubros.value.findIndex((r) => r.id === actualizado.id)
       if (index !== -1) listaRubros.value[index] = actualizado
       rubroSeleccionado.value = actualizado
-      mostrarExito('Rubro actualizado correctamente.')
+      alerta.exito('Rubro actualizado', 'El rubro se actualizó correctamente.')
     } else {
       await crearRubro(datos)
       await cargarRubros()
-      mostrarExito('Rubro creado correctamente.')
+      alerta.exito('Rubro creado', 'El rubro se creó correctamente.')
     }
     cerrarModal()
   } catch (error) {
@@ -104,12 +96,11 @@ async function eliminarSeleccionado() {
   )
   if (!confirmado) return
 
-  mensajeError.value = ''
   try {
     await eliminarRubro(rubro.id)
     listaRubros.value = listaRubros.value.filter((r) => r.id !== rubro.id)
     rubroSeleccionado.value = null
-    mostrarExito('Rubro eliminado correctamente.')
+    alerta.exito('Rubro eliminado', 'El rubro se eliminó correctamente.')
   } catch (error) {
     alerta.error(
       'No se pudo eliminar el rubro',
@@ -147,9 +138,6 @@ async function eliminarSeleccionado() {
         </button>
       </div>
     </div>
-
-    <div v-if="mensajeExito" class="alert alert-success py-2 small">{{ mensajeExito }}</div>
-    <div v-if="mensajeError" class="alert alert-danger py-2 small">{{ mensajeError }}</div>
 
     <div class="card shadow-sm border-0 mb-4">
       <div class="card-body p-3">
