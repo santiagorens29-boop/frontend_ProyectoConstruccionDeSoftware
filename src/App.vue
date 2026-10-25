@@ -2,6 +2,7 @@
 import { ref, computed } from 'vue'
 import Navbar from './components/Navbar.vue'
 import SideBar, { type AccionSidebar } from './components/SideBar.vue'
+import LoginView from './views/LoginView.vue'
 import ProveedoresView from './views/ProveedoresView.vue'
 import OrdenesDeCompras from './views/OrdenesDeCompras.vue'
 import ProductosView from './views/ProductosView.vue'
@@ -10,13 +11,25 @@ import CargarStockView from './views/CargarStockView.vue'
 import ClientesView from './views/ClientesView.vue'
 import RegistrarVentaView from './views/RegistrarVentaView.vue'
 import DevolucionesView from './views/DevolucionesView.vue'
+import AvisoPopup from './components/AvisoPopup.vue'
 import FinanzasFacturacionView from './views/FinanzasFacturacionView.vue'
 import FinanzasCierreView from './views/FinanzasCierreView.vue'
 import FinanzasPeriodosView from './views/FinanzasPeriodosView.vue'
 
-const moduloActivo = ref('administrativos')
+const estaAutenticado = ref(!!localStorage.getItem('access_token'))
 
-const subVistaActiva = ref<'opcion1' | 'opcion2' | 'opcion3'>('opcion2')
+function alIniciarSesion() {
+  estaAutenticado.value = true
+}
+
+function cerrarSesion() {
+  localStorage.removeItem('access_token')
+  localStorage.removeItem('refresh_token')
+  estaAutenticado.value = false
+}
+
+const moduloActivo = ref('administrativos')
+const subVistaActiva = ref<'opcion1' | 'opcion2' | 'opcion3'>('opcion1')
 
 function cambiarModulo(nuevoModulo: string) {
   moduloActivo.value = nuevoModulo
@@ -83,8 +96,8 @@ const accionesSidebar = computed<{
         descripcion: 'Alta, baja y modificación'
       },
       accion2: {
-        titulo: 'Registrar venta / Nueva factura',
-        descripcion: 'Buscar cliente por CUIL y facturar'
+        titulo: 'Generar orden de venta',
+        descripcion: 'Buscar cliente por CUIL y generar la orden'
       },
       accion3: {
         titulo: 'Devoluciones',
@@ -108,13 +121,17 @@ const accionesSidebar = computed<{
 </script>
 
 <template>
-  <div class="d-flex flex-column min-vh-100 bg-light">
+  <LoginView v-if="!estaAutenticado" @sesion-iniciada="alIniciarSesion" />
+
+  <div v-else class="d-flex flex-column min-vh-100 bg-light overflow-x-hidden">
     <Navbar
       :modulo-activo="moduloActivo"
       @cambiar-modulo="cambiarModulo"
+      @cerrar-sesion="cerrarSesion"
     />
 
-    <div class="d-flex flex-grow-1">
+    <!-- Contenedor Responsive: flex-column en mobile, flex-lg-row en desktop -->
+    <div class="d-flex flex-column flex-lg-row flex-grow-1 w-100">
       <SideBar
         :accion1="accionesSidebar.accion1"
         :accion2="accionesSidebar.accion2"
@@ -123,7 +140,8 @@ const accionesSidebar = computed<{
         @seleccionar-accion="(opcion) => subVistaActiva = opcion"
       />
 
-      <main class="flex-grow-1 p-4">
+      <!-- Area Principal con min-width 0 para que la tabla contenga su scroll interno -->
+      <main class="flex-grow-1 p-3 p-md-4 main-content-wrapper" style="min-width: 0;">
         <template v-if="moduloActivo === 'finanzas'">
           <FinanzasFacturacionView v-if="subVistaActiva === 'opcion1'" />
           <FinanzasCierreView v-else-if="subVistaActiva === 'opcion2'" />
@@ -153,4 +171,13 @@ const accionesSidebar = computed<{
       </main>
     </div>
   </div>
+
+  <!-- Avisos (pop up) que reemplazan al alert() del navegador -->
+  <AvisoPopup />
 </template>
+
+<style scoped>
+.main-content-wrapper {
+  background-color: #f8f9fa;
+}
+</style>

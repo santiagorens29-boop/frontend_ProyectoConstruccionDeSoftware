@@ -1,40 +1,69 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import type { Producto, NuevoProducto } from '../types/producto'
+import { obtenerRubros } from '../services/rubrosService'
+import { RUBROS_MOCK, type Rubro } from '../types/rubro'
 
 interface Props {
   mostrar: boolean
   productoAEditar: Producto | null
+  guardando?: boolean
+  error?: string
 }
 
 const props = defineProps<Props>()
 
 const emit = defineEmits<{
   (e: 'cerrar'): void
-  (e: 'guardar', producto: Producto | NuevoProducto): void
+  (e: 'guardar', producto: NuevoProducto & { producto_id?: number; stockactual?: number; activo?: boolean }): void
 }>()
 
-const formulario = ref<NuevoProducto & { producto_id?: number }>({
+const listaRubros = ref<Rubro[]>([...RUBROS_MOCK])
+
+const formulario = ref<{
+  producto_id?: number
+  nombre: string
+  descripcion: string
+  preciounitario: number
+  rubro_id: number
+  stockminreposicion: number
+  stockactual?: number
+  activo?: boolean
+}>({
   nombre: '',
   descripcion: '',
   preciounitario: 0,
   rubro_id: 101,
-  stockactual: 0,
   stockminreposicion: 0
+})
+
+onMounted(async () => {
+  const rubrosCargados = await obtenerRubros()
+  if (rubrosCargados && rubrosCargados.length > 0) {
+    listaRubros.value = rubrosCargados
+  }
 })
 
 watch(
   () => props.productoAEditar,
   (nuevoValor) => {
     if (nuevoValor) {
-      formulario.value = { ...nuevoValor }
+      formulario.value = {
+        producto_id: nuevoValor.producto_id,
+        nombre: nuevoValor.nombre,
+        descripcion: nuevoValor.descripcion,
+        preciounitario: nuevoValor.preciounitario ?? 0,
+        rubro_id: nuevoValor.rubro_id,
+        stockminreposicion: nuevoValor.stockminreposicion,
+        stockactual: nuevoValor.stockactual,
+        activo: nuevoValor.activo
+      }
     } else {
       formulario.value = {
         nombre: '',
         descripcion: '',
         preciounitario: 0,
-        rubro_id: 101,
-        stockactual: 0,
+        rubro_id: listaRubros.value[0]?.rubro_id || 101,
         stockminreposicion: 0
       }
     }
@@ -94,7 +123,7 @@ function guardarProducto() {
                 </div>
 
                 <!-- Nombre -->
-                <div class="col-md-8">
+                <div class="col-md-7">
                   <label class="form-label fw-semibold text-dark">Nombre del Producto *</label>
                   <input
                     v-model="formulario.nombre"
@@ -105,17 +134,18 @@ function guardarProducto() {
                   />
                 </div>
 
-                <!-- Rubro ID -->
-                <div class="col-md-4">
-                  <label class="form-label fw-semibold text-dark">ID Rubro *</label>
-                  <input
+                <!-- Rubro -->
+                <div class="col-md-5">
+                  <label class="form-label fw-semibold text-dark">Rubro *</label>
+                  <select
                     v-model.number="formulario.rubro_id"
-                    type="number"
-                    min="1"
-                    class="form-control custom-input"
-                    placeholder="101"
+                    class="form-select custom-input"
                     required
-                  />
+                  >
+                    <option v-for="rubro in listaRubros" :key="rubro.rubro_id" :value="rubro.rubro_id">
+                      {{ rubro.nombre }}
+                    </option>
+                  </select>
                 </div>
 
                 <!-- Descripción -->
@@ -124,41 +154,14 @@ function guardarProducto() {
                   <textarea
                     v-model="formulario.descripcion"
                     class="form-control custom-input"
-                    rows="2"
+                    rows="3"
                     placeholder="Detalles y especificaciones del material..."
                     required
                   ></textarea>
                 </div>
 
-                <!-- Precio Unitario -->
-                <div class="col-md-4">
-                  <label class="form-label fw-semibold text-dark">Precio Unitario ($) *</label>
-                  <input
-                    v-model.number="formulario.preciounitario"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    class="form-control custom-input"
-                    placeholder="0.00"
-                    required
-                  />
-                </div>
-
-                <!-- Stock Actual -->
-                <div class="col-md-4">
-                  <label class="form-label fw-semibold text-dark">Stock Actual *</label>
-                  <input
-                    v-model.number="formulario.stockactual"
-                    type="number"
-                    min="0"
-                    class="form-control custom-input"
-                    placeholder="0"
-                    required
-                  />
-                </div>
-
                 <!-- Stock Mínimo Reposición -->
-                <div class="col-md-4">
+                <div class="col-md-12">
                   <label class="form-label fw-semibold text-dark">Stock Mín. Reposición *</label>
                   <input
                     v-model.number="formulario.stockminreposicion"
@@ -168,9 +171,17 @@ function guardarProducto() {
                     placeholder="0"
                     required
                   />
+                  <div class="form-text text-muted">
+                    El precio se administra directamente en base a las listas de cada proveedor asociado.
+                  </div>
                 </div>
 
               </div>
+            </div>
+
+            <!-- Error del backend -->
+            <div v-if="props.error" class="alert alert-danger mx-4 mb-0 py-2 small" role="alert">
+              {{ props.error }}
             </div>
 
             <!-- Footer con Acciones -->
@@ -178,11 +189,13 @@ function guardarProducto() {
               <button
                 type="button"
                 class="btn btn-secondary px-4"
+                :disabled="props.guardando"
                 @click="cerrarModal"
               >
                 Cancelar
               </button>
-              <button type="submit" class="btn btn-coralon px-4 fw-semibold">
+              <button type="submit" class="btn btn-coralon px-4 fw-semibold" :disabled="props.guardando">
+                <span v-if="props.guardando" class="spinner-border spinner-border-sm me-2" role="status"></span>
                 {{ productoAEditar ? 'Guardar Cambios' : 'Crear Producto' }}
               </button>
             </div>

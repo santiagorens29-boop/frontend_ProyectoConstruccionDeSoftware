@@ -1,43 +1,70 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
+import { vTextoLimpio } from '../directives/textoLimpio'
+import { computed, nextTick, onMounted, onBeforeUnmount, ref, watch } from 'vue'
+import { normalizarBusqueda } from '../utils/busqueda'
 import type { OrdenCompraCabecera, OrdenCompraDetalle } from '../types/compra'
-import type { FacturaCabecera } from '../types/finanzas'
-import { PROVEEDORES_MOCK } from '../types/proveedor'
-import { PRODUCTOS_MOCK } from '../types/producto'
+import type { FacturaCompra, EstadoCompra } from '../types/compra'
+import { claseEstadoCompra, normalizarEstadoCompra, transicionPermitida, estadoCompraReconocido, etiquetaEstadoCompra, formatearFechaHoraCompra } from '../services/comprasService'
+import type { Proveedor } from '../types/proveedor'
+import type { ProductoProveedor } from '../services/productosService'
 
 const props = defineProps<{
   mostrar: boolean
+  ordenInicialId?: number | null
   ordenes: OrdenCompraCabecera[]
-  facturas: FacturaCabecera[]
+  facturas: FacturaCompra[]
+  proveedores: Proveedor[]
+  productos: ProductoProveedor[]
+  estados: EstadoCompra[]
+  cargandoFacturas: boolean
+  errorFacturas: string
   detalles: OrdenCompraDetalle[]
-  cambiosHabilitados: boolean
   actualizando: boolean
   error: string
   mensaje: string
 }>()
 const emit = defineEmits<{
+  (e: 'editar', ordenId: number): void
   (e: 'cerrar'): void
-  (e: 'alternar-cambios'): void
+  (e: 'reintentar-facturas'): void
   (e: 'cambiar-estado', ordenId: number, estado: OrdenCompraCabecera['estado']): void
 }>()
 
+const accionesEstado = [
+  { estado: 'aprobada', etiqueta: 'Aprobar', clase: 'btn-outline-success' },
+  { estado: 'rechazada', etiqueta: 'Rechazar', clase: 'btn-outline-danger' },
+  { estado: 'recibida', etiqueta: 'Recibir', clase: 'btn-outline-primary' },
+  { estado: 'devuelto', etiqueta: 'Devolver', clase: 'btn-outline-danger' }
+]
+const accionesDisponibles = computed(() => seleccionada.value
+  ? accionesEstado.filter(accion => transicionPermitida(seleccionada.value!.estado, accion.estado))
+  : [])
+
+const consultaMobile = typeof window !== 'undefined' ? window.matchMedia('(max-width: 991.98px)') : null
+const esMobile = ref(consultaMobile?.matches ?? false)
+function actualizarMobile() { esMobile.value = consultaMobile?.matches ?? false }
+onMounted(() => consultaMobile?.addEventListener('change', actualizarMobile))
+onBeforeUnmount(() => consultaMobile?.removeEventListener('change', actualizarMobile))
+
 const busqueda = ref('')
+const filtroEstado = ref<OrdenCompraCabecera['estado'] | ''>('')
 const ordenId = ref<number | null>(null)
+
 const buscador = ref<HTMLInputElement | null>(null)
 let focoAnterior: HTMLElement | null = null
 const dialogo = ref<HTMLElement | null>(null)
 const moneda = (valor: number) => valor.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })
-const normalizar = (valor: string) => valor.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim()
-const proveedor = (id: number) => PROVEEDORES_MOCK.find(item => item.proveedor_id === id)
-const nombreProducto = (id: number) => PRODUCTOS_MOCK.find(item => item.producto_id === id)?.nombre ?? `Producto #${id}`
+const proveedor = (id: number) => props.proveedores.find(item => item.proveedor_id === id)
+const nombreProducto = (id: number) => props.productos.find(item => item.id === id)?.nombre ?? `Producto #${id}`
 const facturasDeOrden = (id: number) => props.facturas.filter(item => item.ordencompra_id === id)
 
 const ordenesFiltradas = computed(() => {
-  const texto = normalizar(busqueda.value)
+  const texto = normalizarBusqueda(busqueda.value)
   return props.ordenes.filter(orden => {
+    if (filtroEstado.value !== '' && orden.estado !== filtroEstado.value) return false
     const proveedorOrden = proveedor(orden.proveedor_id)
-    return normalizar([
-      orden.ordencompra_id, orden.solicitante, orden.fecha,
+    return normalizarBusqueda([
+      orden.ordencompra_id, orden.fecha,
       proveedorOrden?.nombre, proveedorOrden?.apellido,
       facturasDeOrden(orden.ordencompra_id).map(factura => factura.numero).join(' ')
     ].join(' ')).includes(texto)
@@ -45,12 +72,19 @@ const ordenesFiltradas = computed(() => {
 })
 
 const seleccionada = computed(() => ordenesFiltradas.value.find(item => item.ordencompra_id === ordenId.value))
+const ordenesVisibles = computed(() => esMobile.value && seleccionada.value ? [seleccionada.value] : ordenesFiltradas.value)
+function seleccionarOrden(id: number) {
+  if (props.actualizando) return
+  ordenId.value = esMobile.value && ordenId.value === id ? null : id
+}
 const detallesSeleccionados = computed(() => props.detalles.filter(item => item.ordencompra_id === seleccionada.value?.ordencompra_id))
 const proveedorSeleccionado = computed(() => seleccionada.value ? proveedor(seleccionada.value.proveedor_id) : undefined)
 const facturasSeleccionadas = computed(() => seleccionada.value ? facturasDeOrden(seleccionada.value.ordencompra_id) : [])
 
 function cambiarEstado(estado: OrdenCompraCabecera['estado']) {
-  if (!seleccionada.value || !props.cambiosHabilitados || props.actualizando || seleccionada.value.estado !== 'Pendiente') return
+  if (!seleccionada.value || props.actualizando) return
+  const actual = seleccionada.value.estado
+  if (!transicionPermitida(actual, estado)) return
   emit('cambiar-estado', seleccionada.value.ordencompra_id, estado)
 }
 
@@ -59,16 +93,23 @@ function cerrar() {
 }
 
 watch(ordenesFiltradas, ordenes => {
-  if (!ordenes.some(item => item.ordencompra_id === ordenId.value)) ordenId.value = ordenes[0]?.ordencompra_id ?? null
+  if (!ordenes.some(item => item.ordencompra_id === ordenId.value)) {
+    ordenId.value = esMobile.value ? null : ordenes[0]?.ordencompra_id ?? null
+  }
 })
 
 watch(() => props.mostrar, async mostrar => {
   if (mostrar) {
     focoAnterior = document.activeElement instanceof HTMLElement ? document.activeElement : null
     busqueda.value = ''
-    ordenId.value = props.ordenes[0]?.ordencompra_id ?? null
+    filtroEstado.value = ''
+    ordenId.value = props.ordenes.find(orden => orden.ordencompra_id === props.ordenInicialId)?.ordencompra_id
+      ?? props.ordenes[0]?.ordencompra_id ?? null
     await nextTick()
-    buscador.value?.focus()
+    if (esMobile.value) {
+      const botonSeleccionado = dialogo.value?.querySelector<HTMLButtonElement>('.list-group button[aria-pressed="true"]')
+      ;(botonSeleccionado ?? dialogo.value)?.focus()
+    } else buscador.value?.focus()
   } else {
     focoAnterior?.focus()
   }
@@ -105,15 +146,15 @@ function mantenerFoco(event: KeyboardEvent) {
           <div class="modal-body bg-light p-4">
             <div v-if="error" class="alert alert-danger" role="alert">{{ error }}</div>
             <div v-if="mensaje" class="alert alert-success" role="status">{{ mensaje }}</div>
-            <div class="d-flex justify-content-end mb-3">
-              <button type="button" class="btn btn-outline-coralon fw-semibold" :disabled="actualizando" :aria-pressed="cambiosHabilitados" @click="emit('alternar-cambios')">
-                {{ cambiosHabilitados ? 'Bloquear cambios de estado' : 'Habilitar cambios de estado' }}
-              </button>
-            </div>
             <div class="card border-0 shadow-sm mb-4">
               <div class="card-body">
                 <label for="buscar-orden-consulta" class="form-label small fw-semibold">Buscar orden</label>
-                <input id="buscar-orden-consulta" ref="buscador" v-model="busqueda" type="search" class="form-control" :disabled="actualizando" placeholder="Número de orden, solicitante, proveedor, fecha o comprobante..." />
+                <input maxlength="150" v-texto-limpio id="buscar-orden-consulta" ref="buscador" v-model="busqueda" type="search" class="form-control" :disabled="actualizando" placeholder="Número de orden, proveedor, fecha o comprobante..." />
+                <label for="estado-orden-consulta" class="form-label small fw-semibold mt-3">Filtrar por estado</label>
+                <select id="estado-orden-consulta" v-model="filtroEstado" class="form-select" :disabled="actualizando">
+                  <option value="">Todos los estados</option>
+<option v-for="estado in estados" :key="estado.estadoordencompra_id" :value="normalizarEstadoCompra(estado.nombre)">{{ etiquetaEstadoCompra(estado.nombre.toLowerCase()) }}</option>
+                </select>
                 <small class="text-muted" role="status">{{ ordenesFiltradas.length }} orden(es) encontradas</small>
               </div>
             </div>
@@ -122,14 +163,15 @@ function mantenerFoco(event: KeyboardEvent) {
                 <div class="card border-0 shadow-sm overflow-hidden">
                   <div class="card-header encabezado text-white fw-semibold py-3">Órdenes registradas</div>
                   <div class="list-group list-group-flush">
-                    <button v-for="orden in ordenesFiltradas" :key="orden.ordencompra_id" type="button" class="list-group-item list-group-item-action p-3" :disabled="actualizando" :class="{ seleccionada: ordenId === orden.ordencompra_id }" :aria-pressed="ordenId === orden.ordencompra_id" @click="ordenId = orden.ordencompra_id">
+                    <button v-for="orden in ordenesVisibles" :key="orden.ordencompra_id" type="button" class="list-group-item list-group-item-action p-3" :disabled="actualizando" :class="{ seleccionada: ordenId === orden.ordencompra_id }" :aria-pressed="ordenId === orden.ordencompra_id" @click="seleccionarOrden(orden.ordencompra_id)">
                       <span class="d-flex justify-content-between gap-2 mb-2">
                         <strong>Orden #{{ orden.ordencompra_id }}</strong>
-                        <span class="badge align-self-start" :class="orden.estado === 'Aprobada' ? 'bg-success' : orden.estado === 'Cancelada' ? 'bg-danger' : 'bg-warning text-dark'">{{ orden.estado }}</span>
+                        <span class="badge align-self-start" :class="claseEstadoCompra(orden.estado)">{{ etiquetaEstadoCompra(orden.estado) }}</span>
                       </span>
-                      <span class="d-block fw-semibold">{{ orden.solicitante }}</span>
+                      <span class="d-block fw-semibold">{{ proveedor(orden.proveedor_id)?.nombre }} {{ proveedor(orden.proveedor_id)?.apellido }}</span>
                       <span class="d-flex justify-content-between gap-2 small mt-2"><span class="text-muted">{{ orden.fecha }}</span><strong>{{ moneda(orden.total) }}</strong></span>
-                      <span class="d-block small text-muted mt-2">{{ facturasDeOrden(orden.ordencompra_id).length ? facturasDeOrden(orden.ordencompra_id).map(factura => factura.numero).join(', ') : 'Sin factura asociada' }}</span>
+                      <span class="d-block small text-muted mt-2">{{ cargandoFacturas ? 'Cargando comprobantes…' : errorFacturas ? 'Comprobantes no disponibles' : facturasDeOrden(orden.ordencompra_id).length ? facturasDeOrden(orden.ordencompra_id).map(factura => factura.numero).join(', ') : 'Sin factura asociada' }}</span>
+                      <span v-if="esMobile && ordenId === orden.ordencompra_id" class="d-block small text-coralon fw-semibold mt-2">Tocá nuevamente para ver las demás órdenes</span>
                     </button>
                     <p v-if="!ordenesFiltradas.length" class="text-muted text-center p-4 mb-0">No se encontraron órdenes.</p>
                   </div>
@@ -139,40 +181,31 @@ function mantenerFoco(event: KeyboardEvent) {
                 <section v-if="seleccionada" class="card border-0 shadow-sm overflow-hidden" aria-label="Orden seleccionada">
                   <div class="card-header encabezado text-white py-3 fw-semibold">Orden #{{ seleccionada.ordencompra_id }} · Información de compra</div>
                   <div class="card-body">
+                    <button v-if="seleccionada.estado === 'pendiente'" type="button" class="btn btn-coralon mb-3" :disabled="actualizando" @click="emit('editar', seleccionada.ordencompra_id)">Editar orden</button>
                     <div class="border rounded p-3 mb-4 bg-light">
                       <span class="small text-muted d-block mb-2">Estado de la orden</span>
                       <div class="d-flex flex-wrap align-items-center gap-2">
-                        <span class="badge me-auto" :class="seleccionada.estado === 'Aprobada' ? 'bg-success' : seleccionada.estado === 'Cancelada' ? 'bg-danger' : 'bg-warning text-dark'">
-                          {{ seleccionada.estado }}
+                        <span class="badge me-auto" :class="claseEstadoCompra(seleccionada.estado)">
+                          {{ etiquetaEstadoCompra(seleccionada.estado) }}
                         </span>
 
-                        <template v-if="seleccionada.estado === 'Pendiente'">
-                          <button
-                            type="button"
-                            class="btn btn-sm btn-outline-success"
-                            :disabled="!cambiosHabilitados || actualizando || !detallesSeleccionados.length"
-                            @click="cambiarEstado('Aprobada')"
-                          >
-                            Aprobar
-                          </button>
-                          <button
-                            type="button"
-                            class="btn btn-sm btn-outline-danger"
-                            :disabled="!cambiosHabilitados || actualizando"
-                            @click="cambiarEstado('Cancelada')"
-                          >
-                            Cancelar
-                          </button>
-                        </template>
-
-                        <span v-else class="text-muted small fst-italic">
-                          Estado bloqueado (no editable)
+                        <button
+                          v-for="accion in accionesDisponibles"
+                          :key="accion.estado"
+                          type="button"
+                          class="btn btn-sm"
+                          :class="accion.clase"
+                          :disabled="actualizando || (accion.estado === 'aprobada' && !detallesSeleccionados.length)"
+                          @click="cambiarEstado(accion.estado)"
+                        >{{ accion.etiqueta }}</button>
+                        <span v-if="!accionesDisponibles.length" class="text-muted small fst-italic">
+                          {{ estadoCompraReconocido(seleccionada.estado) ? 'Estado final (no editable)' : 'Este estado no tiene transiciones configuradas. No hay acciones disponibles.' }}
                         </span>
                       </div>
                     </div>
+                    <p v-if="seleccionada.estado === 'recibida'" class="alert alert-info small">La orden está disponible para facturar en Finanzas. Pasará a Contabilizado cuando se registre la factura.</p>
                     <div class="row g-3 mb-4">
-                      <div class="col-sm-6"><span class="small text-muted d-block">Solicitante interno</span><strong>{{ seleccionada.solicitante }}</strong></div>
-                      <div class="col-sm-6"><span class="small text-muted d-block">Fecha de la orden</span><strong>{{ seleccionada.fecha }}</strong></div>
+                      <div class="col-sm-6"><span class="small text-muted d-block">Fecha de la orden</span><strong>{{ formatearFechaHoraCompra(seleccionada.fecha) }}</strong></div>
                       <div class="col-12 bg-light rounded p-3">
                         <span class="small text-muted d-block">Proveedor</span>
                         <strong>{{ proveedorSeleccionado ? `${proveedorSeleccionado.nombre} ${proveedorSeleccionado.apellido}` : `Proveedor #${seleccionada.proveedor_id}` }}</strong>
@@ -193,14 +226,14 @@ function mantenerFoco(event: KeyboardEvent) {
                       </table>
                     </div>
                     <p class="text-end fw-bold mt-3">Total de la orden: <span class="text-coralon">{{ moneda(seleccionada.total) }}</span></p>
-                    <h6 class="fw-bold border-top pt-3">Comprobantes asociados</h6>
+                    <h6 class="fw-bold border-top pt-3">Comprobantes asociados</h6><p v-if="cargandoFacturas" role="status">Cargando comprobantes…</p><div v-if="errorFacturas" class="alert alert-warning" role="alert">{{ errorFacturas }} <button class="btn btn-sm btn-outline-secondary" @click="emit('reintentar-facturas')">Reintentar</button></div>
                     <div v-for="factura in facturasSeleccionadas" :key="factura.facturacabecera_id" class="bg-light border rounded p-3 mt-2">
                       <div class="d-flex flex-wrap justify-content-between gap-2 mb-3"><strong>{{ factura.tipo }} · {{ factura.numero }}</strong><span class="small text-muted">{{ factura.fecha }}</span></div>
                       <div class="d-flex justify-content-between"><span>Subtotal</span><span>{{ moneda(factura.subtotal) }}</span></div>
                       <div class="d-flex justify-content-between"><span>Impuesto</span><span>{{ moneda(factura.impuesto) }}</span></div>
                       <div class="d-flex justify-content-between fw-bold border-top pt-2 mt-2"><span>Total del comprobante</span><span class="text-coralon">{{ moneda(factura.total) }}</span></div>
                     </div>
-                    <p v-if="!facturasSeleccionadas.length" class="text-muted small mb-0">Esta orden todavía no tiene una factura asociada.</p>
+                    <p v-if="!cargandoFacturas && !errorFacturas && !facturasSeleccionadas.length" class="text-muted small mb-0">Esta orden todavía no tiene una factura asociada.</p>
                   </div>
                 </section>
                 <div v-else class="card border-0 shadow-sm p-5 text-center text-muted">Seleccioná una orden para consultar sus productos y comprobantes.</div>
@@ -218,8 +251,8 @@ function mantenerFoco(event: KeyboardEvent) {
 .modal-backdrop { opacity: 0.6; }
 .encabezado { background-color: #231f1d; border-bottom: 3px solid #b33e14; }
 .text-coralon { color: #b33e14; }
-.btn-outline-coralon { border-color: #b33e14; color: #b33e14; }
-.btn-outline-coralon:hover:not(:disabled) { background-color: #b33e14; color: #fff; }
+.btn-coralon { background-color: #b33e14; border-color: #b33e14; color: #fff; }
+.btn-coralon:hover { background-color: #ff7a45; border-color: #ff7a45; color: #fff; }
 .seleccionada { background-color: #fff1eb; border-left: 4px solid #b33e14; }
 .form-control:focus { border-color: #b33e14; box-shadow: 0 0 0 0.15rem #b33e1420; }
 .list-group-item:focus-visible { outline: 2px solid #b33e14; outline-offset: -2px; }
