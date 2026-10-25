@@ -1,5 +1,6 @@
 import type { Component } from 'vue'
 import HomeView from '../views/HomeView.vue'
+import ManualUsuarioView from '../views/ManualUsuarioView.vue'
 import ProductosView from '../views/ProductosView.vue'
 import CargarStockView from '../views/CargarStockView.vue'
 import ProveedoresView from '../views/ProveedoresView.vue'
@@ -26,6 +27,12 @@ export const routes: RouteDefinition[] = [
     path: '/',
     name: 'home',
     component: HomeView,
+    meta: { requiresAuth: true }
+  },
+  {
+    path: '/ayuda',
+    name: 'ayuda',
+    component: ManualUsuarioView,
     meta: { requiresAuth: true }
   },
   {
@@ -97,4 +104,3 @@ export const routes: RouteDefinition[] = [
 ]
 
 export default routes
-
