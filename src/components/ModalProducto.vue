@@ -200,11 +200,6 @@ function guardarProducto() {
               </div>
             </div>
 
-            <!-- Error del backend -->
-            <div v-if="props.error" class="alert alert-danger mx-4 mb-0 py-2 small" role="alert">
-              {{ props.error }}
-            </div>
-
             <!-- Footer con Acciones -->
             <div class="modal-footer bg-light px-4 py-3 border-top">
               <button
@@ -255,4 +250,3 @@ function guardarProducto() {
   color: #ffffff;
 }
 </style>
-
