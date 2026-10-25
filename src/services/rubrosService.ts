@@ -1,5 +1,5 @@
 import api from '../lib/api'
-import { RUBROS_MOCK, type Rubro, type NuevoRubro } from '../types/rubro'
+import { RUBROS_MOCK, type Rubro, type RubroAPI, type NuevoRubro } from '../types/rubro'
 
 const RUTA_RUBROS = '/scm/rubros/'
 
@@ -43,11 +43,11 @@ interface RespuestaPaginada<T> {
 /**
  * GET: Obtener todos los rubros del ABM, sin fallback a mock (recorre las páginas del backend)
  */
-export async function listarRubros(): Promise<Rubro[]> {
-  const rubros: Rubro[] = []
+export async function listarRubros(): Promise<RubroAPI[]> {
+  const rubros: RubroAPI[] = []
   let pagina = 1
   while (true) {
-    const respuesta = await api.get<Rubro[] | RespuestaPaginada<Rubro>>(RUTA_RUBROS, {
+    const respuesta = await api.get<RubroAPI[] | RespuestaPaginada<RubroAPI>>(RUTA_RUBROS, {
       params: { page: pagina }
     })
     if (Array.isArray(respuesta.data)) return respuesta.data
@@ -60,16 +60,16 @@ export async function listarRubros(): Promise<Rubro[]> {
 /**
  * POST: Crear un rubro
  */
-export async function crearRubro(datos: NuevoRubro): Promise<Rubro> {
-  const respuesta = await api.post<Rubro>(RUTA_RUBROS, datos)
+export async function crearRubro(datos: NuevoRubro): Promise<RubroAPI> {
+  const respuesta = await api.post<RubroAPI>(RUTA_RUBROS, datos)
   return respuesta.data
 }
 
 /**
  * PUT: Modificar un rubro
  */
-export async function actualizarRubro(id: number, datos: NuevoRubro): Promise<Rubro> {
-  const respuesta = await api.put<Rubro>(`${RUTA_RUBROS}${id}/`, datos)
+export async function actualizarRubro(id: number, datos: NuevoRubro): Promise<RubroAPI> {
+  const respuesta = await api.put<RubroAPI>(`${RUTA_RUBROS}${id}/`, datos)
   return respuesta.data
 }
 

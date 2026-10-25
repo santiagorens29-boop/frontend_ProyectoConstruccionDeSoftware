@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import type { Rubro, NuevoRubro } from '../types/rubro'
+import type { RubroAPI, NuevoRubro } from '../types/rubro'
 import {
   listarRubros,
   crearRubro,
@@ -10,13 +10,13 @@ import {
 } from '../services/rubrosService'
 import ModalRubro from '../components/ModalRubro.vue'
 
-const listaRubros = ref<Rubro[]>([])
+const listaRubros = ref<RubroAPI[]>([])
 const cargando = ref(false)
 const filtroBusqueda = ref('')
-const rubroSeleccionado = ref<Rubro | null>(null)
+const rubroSeleccionado = ref<RubroAPI | null>(null)
 
 const mostrarModal = ref(false)
-const rubroParaEditar = ref<Rubro | null>(null)
+const rubroParaEditar = ref<RubroAPI | null>(null)
 const errorModal = ref('')
 const mensajeExito = ref('')
 const mensajeError = ref('')
@@ -50,7 +50,7 @@ function mostrarExito(texto: string) {
   setTimeout(() => (mensajeExito.value = ''), 3000)
 }
 
-function seleccionarFila(rubro: Rubro) {
+function seleccionarFila(rubro: RubroAPI) {
   rubroSeleccionado.value = rubroSeleccionado.value?.id === rubro.id ? null : rubro
 }
 

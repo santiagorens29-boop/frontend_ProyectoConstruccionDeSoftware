@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import type { Rubro, NuevoRubro } from '../types/rubro'
+import type { RubroAPI, NuevoRubro } from '../types/rubro'
 
 interface Props {
   mostrar: boolean
-  rubroAEditar: Rubro | null
+  rubroAEditar: RubroAPI | null
   error?: string
 }
 
