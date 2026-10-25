@@ -9,8 +9,7 @@ import {
   mensajeDeError
 } from '../services/rubrosService'
 import ModalRubro from '../components/ModalRubro.vue'
-import ModalConfirmacion from '../components/ModalConfirmacion.vue'
-import { avisoError } from '../utils/avisos'
+import { alerta } from '../utils/alertas'
 
 const listaRubros = ref<RubroAPI[]>([])
 const cargando = ref(false)
@@ -95,16 +94,15 @@ async function guardarRubro(datos: NuevoRubro) {
   }
 }
 
-const rubroParaEliminar = ref<RubroAPI | null>(null)
-
-function pedirConfirmacionEliminar() {
-  rubroParaEliminar.value = rubroSeleccionado.value
-}
-
-async function resolverEliminar(confirmado: boolean) {
-  const rubro = rubroParaEliminar.value
-  rubroParaEliminar.value = null
-  if (!confirmado || !rubro) return
+async function eliminarSeleccionado() {
+  const rubro = rubroSeleccionado.value
+  if (!rubro) return
+  const confirmado = await alerta.confirmar(
+    'Eliminar rubro',
+    `¿Eliminar el rubro "${rubro.nombre}"?`,
+    'Eliminar'
+  )
+  if (!confirmado) return
 
   mensajeError.value = ''
   try {
@@ -113,9 +111,9 @@ async function resolverEliminar(confirmado: boolean) {
     rubroSeleccionado.value = null
     mostrarExito('Rubro eliminado correctamente.')
   } catch (error) {
-    avisoError(
-      mensajeDeError(error, 'Verificá que el rubro no tenga productos asociados.'),
-      'No se pudo eliminar el rubro'
+    alerta.error(
+      'No se pudo eliminar el rubro',
+      mensajeDeError(error, 'Verificá que el rubro no tenga productos asociados.')
     )
   }
 }
@@ -133,7 +131,7 @@ async function resolverEliminar(confirmado: boolean) {
         <button
           class="btn btn-outline-danger fw-semibold px-3"
           :disabled="!rubroSeleccionado"
-          @click="pedirConfirmacionEliminar"
+          @click="eliminarSeleccionado"
         >
           Eliminar
         </button>
@@ -202,14 +200,6 @@ async function resolverEliminar(confirmado: boolean) {
         </table>
       </div>
     </div>
-
-    <ModalConfirmacion
-      v-if="rubroParaEliminar"
-      titulo="Eliminar rubro"
-      texto-confirmar="Eliminar"
-      :mensaje="`¿Eliminar el rubro &quot;${rubroParaEliminar.nombre}&quot;?`"
-      @resolver="resolverEliminar"
-    />
 
     <ModalRubro
       :mostrar="mostrarModal"

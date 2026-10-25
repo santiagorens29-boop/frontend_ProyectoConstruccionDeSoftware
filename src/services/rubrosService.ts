@@ -1,5 +1,5 @@
 import api from '../lib/api'
-import { RUBROS_MOCK, type Rubro, type RubroAPI, type NuevoRubro } from '../types/rubro'
+import type { Rubro, RubroAPI, NuevoRubro } from '../types/rubro'
 
 const RUTA_RUBROS = '/scm/rubros/'
 
@@ -11,27 +11,18 @@ interface RespuestaRubrosAPI {
 }
 
 export async function obtenerRubros(): Promise<Rubro[]> {
-  try {
-    const respuesta = await api.get<RespuestaRubrosAPI | Rubro[]>(RUTA_RUBROS)
+  const respuesta = await api.get<RespuestaRubrosAPI | Rubro[]>(RUTA_RUBROS)
 
-    const items = Array.isArray(respuesta.data)
-      ? respuesta.data
-      : (respuesta.data?.results || [])
+  const items = Array.isArray(respuesta.data)
+    ? respuesta.data
+    : (respuesta.data?.results || [])
 
-    if (items.length > 0) {
-      return items.map((r: any) => ({
-        rubro_id: r.id ?? r.rubro_id,
-        id: r.id ?? r.rubro_id,
-        nombre: r.nombre,
-        descripcion: r.descripcion
-      }))
-    }
-
-    return RUBROS_MOCK
-  } catch (error) {
-    console.warn('Backend de rubros no disponible. Usando mocks.', error)
-    return RUBROS_MOCK
-  }
+  return items.map((r: any) => ({
+    rubro_id: r.id ?? r.rubro_id,
+    id: r.id ?? r.rubro_id,
+    nombre: r.nombre,
+    descripcion: r.descripcion
+  }))
 }
 
 interface RespuestaPaginada<T> {
@@ -41,7 +32,7 @@ interface RespuestaPaginada<T> {
 }
 
 /**
- * GET: Obtener todos los rubros del ABM, sin fallback a mock (recorre las páginas del backend)
+ * GET: Obtener todos los rubros del ABM (recorre las páginas del backend)
  */
 export async function listarRubros(): Promise<RubroAPI[]> {
   const rubros: RubroAPI[] = []
