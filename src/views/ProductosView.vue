@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import type { Producto, MovimientoInventario } from '../types/producto'
-import { RUBROS_MOCK, type Rubro } from '../types/rubro'
+import type { Rubro } from '../types/rubro'
 import {
   obtenerProductos,
   crearProducto,
@@ -16,8 +16,10 @@ import ModalProducto from '../components/ModalProducto.vue'
 import ModalMovimientos from '../components/ModalMovimientos.vue'
 
 const listaProductos = ref<Producto[]>([])
-const listaRubros = ref<Rubro[]>([...RUBROS_MOCK])
+const listaRubros = ref<Rubro[]>([])
 const filtroBusqueda = ref('')
+const cargando = ref(false)
+const errorCarga = ref('')
 
 const mostrarModal = ref(false)
 const productoParaEditar = ref<Producto | null>(null)
@@ -29,13 +31,31 @@ const mostrarModalMovimientos = ref(false)
 const productoParaMovimientos = ref<Producto | null>(null)
 const movimientosProductoSeleccionado = ref<MovimientoInventario[]>([])
 
-onMounted(async () => {
-  const [prods, rubs] = await Promise.all([obtenerProductos(), obtenerRubros()])
-  listaProductos.value = prods
-  listaRubros.value = rubs
+async function cargarDatos() {
+  cargando.value = true
+  errorCarga.value = ''
+  try {
+    const [prods, rubs] = await Promise.all([
+      obtenerProductos(),
+      obtenerRubros().catch(() => [] as Rubro[])
+    ])
+    listaProductos.value = prods
+    listaRubros.value = rubs
+  } catch {
+    listaProductos.value = []
+    listaRubros.value = []
+    errorCarga.value = 'No se pudo conectar con el servidor o cargar los datos. Verifique que el servicio esté disponible.'
+  } finally {
+    cargando.value = false
+  }
+}
+
+onMounted(() => {
+  cargarDatos()
 })
 
-function obtenerNombreRubro(rubroId: number): string {
+function obtenerNombreRubro(rubroId: number, rubroNombre?: string): string {
+  if (rubroNombre) return rubroNombre
   const r = listaRubros.value.find(item => item.rubro_id === rubroId)
   return r ? r.nombre : `Rubro #${rubroId}`
 }
@@ -50,7 +70,7 @@ const productosFiltrados = computed(() => {
   return productosActivos.filter((p) =>
     p.nombre.toLowerCase().includes(busqueda) ||
     p.descripcion.toLowerCase().includes(busqueda) ||
-    obtenerNombreRubro(p.rubro_id).toLowerCase().includes(busqueda)
+    obtenerNombreRubro(p.rubro_id, p.rubro_nombre).toLowerCase().includes(busqueda)
   )
 })
 
@@ -74,8 +94,13 @@ function cerrarModal() {
 
 async function verMovimientos(producto: Producto) {
   productoParaMovimientos.value = producto
-  movimientosProductoSeleccionado.value = await obtenerMovimientosPorProducto(producto.producto_id)
-  mostrarModalMovimientos.value = true
+  try {
+    movimientosProductoSeleccionado.value = await obtenerMovimientosPorProducto(producto.producto_id)
+    mostrarModalMovimientos.value = true
+  } catch (error) {
+    movimientosProductoSeleccionado.value = []
+    alerta.error('Error al cargar movimientos', mensajeErrorApi(error))
+  }
 }
 
 // Flujo de Confirmación de Baja con SweetAlert2
@@ -166,6 +191,22 @@ async function guardarProducto(datos: any) {
       </div>
     </div>
 
+    <!-- Banner de error de carga -->
+    <div
+      v-if="errorCarga"
+      class="alert alert-danger d-flex flex-column flex-sm-row align-items-start align-items-sm-center justify-content-between gap-2 mb-4"
+      role="alert"
+    >
+      <span>{{ errorCarga }}</span>
+      <button
+        type="button"
+        class="btn btn-sm btn-outline-danger fw-semibold flex-shrink-0"
+        @click="cargarDatos"
+      >
+        Reintentar
+      </button>
+    </div>
+
     <!-- Tabla Responsive con Botones por Fila -->
     <div class="card shadow-sm border-0 overflow-hidden">
       <div class="table-responsive">
@@ -190,7 +231,7 @@ async function guardarProducto(datos: any) {
               <td>
                 <div class="fw-semibold text-dark">{{ producto.nombre }}</div>
                 <div class="d-lg-none mt-1">
-                  <span class="badge badge-rubro small">{{ obtenerNombreRubro(producto.rubro_id) }}</span>
+                  <span class="badge badge-rubro small">{{ obtenerNombreRubro(producto.rubro_id, producto.rubro_nombre) }}</span>
                 </div>
               </td>
               <td class="text-secondary small text-truncate d-none d-md-table-cell" style="max-width: 250px;">
@@ -198,7 +239,7 @@ async function guardarProducto(datos: any) {
               </td>
               <td class="d-none d-lg-table-cell">
                 <span class="badge badge-rubro">
-                  {{ obtenerNombreRubro(producto.rubro_id) }}
+                  {{ obtenerNombreRubro(producto.rubro_id, producto.rubro_nombre) }}
                 </span>
               </td>
               <td class="text-center">
@@ -243,7 +284,8 @@ async function guardarProducto(datos: any) {
             </tr>
             <tr v-if="productosFiltrados.length === 0">
               <td colspan="7" class="text-center py-5 text-muted">
-                No se encontraron productos activos que coincidan con la búsqueda.
+                <span v-if="cargando">Cargando productos...</span>
+                <span v-else>No se encontraron productos...</span>
               </td>
             </tr>
           </tbody>

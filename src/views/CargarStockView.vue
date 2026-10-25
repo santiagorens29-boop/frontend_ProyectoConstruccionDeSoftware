@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
-import { PRODUCTOS_MOCK, type Producto } from '../types/producto'
+import type { Producto } from '../types/producto'
 import { obtenerProductos } from '../services/productosService'
 import { crearOrdenCompra } from '../services/comprasService'
 import { mensajeErrorApi } from '../utils/erroresApi'
@@ -10,18 +10,20 @@ import ModalReponerStock from '../components/ModalReponerStock.vue'
 // Estado reactivo conectado
 const productos = ref<Producto[]>([])
 const cargando = ref(false)
+const errorCarga = ref('')
 const filtroBusqueda = ref('')
 const productoSeleccionado = ref<Producto | null>(null)
 const mostrarModalReponer = ref(false)
 
 async function cargarListaProductos() {
   cargando.value = true
+  errorCarga.value = ''
   try {
     const data = await obtenerProductos()
     productos.value = data
-  } catch (error) {
-    console.error('Error al cargar productos desde la API:', error)
-    productos.value = [...PRODUCTOS_MOCK]
+  } catch {
+    productos.value = []
+    errorCarga.value = 'No se pudo conectar con el servidor o cargar los datos. Verifique que el servicio esté disponible.'
   } finally {
     cargando.value = false
   }
@@ -153,6 +155,22 @@ async function confirmarReposicion(datos: {
       </div>
     </div>
 
+    <!-- Banner de error de carga -->
+    <div
+      v-if="errorCarga"
+      class="alert alert-danger d-flex flex-column flex-sm-row align-items-start align-items-sm-center justify-content-between gap-2 mb-4"
+      role="alert"
+    >
+      <span>{{ errorCarga }}</span>
+      <button
+        type="button"
+        class="btn btn-sm btn-outline-danger fw-semibold flex-shrink-0"
+        @click="cargarListaProductos"
+      >
+        Reintentar
+      </button>
+    </div>
+
     <!-- Tabla Principal de Stock con selección de fila y ocultamiento progresivo -->
     <div class="card shadow-sm border-0 overflow-hidden">
       <div class="card-header encabezado-custom text-white py-3 d-flex justify-content-between align-items-center">
@@ -225,7 +243,7 @@ async function confirmarReposicion(datos: {
             <tr v-if="productosFiltrados.length === 0">
               <td colspan="6" class="text-center py-4 text-muted">
                 <span v-if="cargando">Cargando productos del inventario...</span>
-                <span v-else>No se encontraron productos coincidentes.</span>
+                <span v-else>No se encontraron productos...</span>
               </td>
             </tr>
           </tbody>
