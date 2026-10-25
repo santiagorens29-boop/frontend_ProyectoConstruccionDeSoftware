@@ -4,6 +4,7 @@ import { PRODUCTOS_MOCK, type Producto } from '../types/producto'
 import { obtenerProductos } from '../services/productosService'
 import { crearOrdenCompra } from '../services/comprasService'
 import { mensajeErrorApi } from '../utils/erroresApi'
+import { alerta } from '../utils/alertas'
 import ModalReponerStock from '../components/ModalReponerStock.vue'
 
 // Estado reactivo conectado
@@ -12,8 +13,6 @@ const cargando = ref(false)
 const filtroBusqueda = ref('')
 const productoSeleccionado = ref<Producto | null>(null)
 const mostrarModalReponer = ref(false)
-const mensajeExito = ref('')
-const mensajeError = ref('')
 
 async function cargarListaProductos() {
   cargando.value = true
@@ -93,17 +92,15 @@ async function confirmarReposicion(datos: {
       ]
     })
 
-    mensajeExito.value = `Orden de compra creada con éxito para "${prod.nombre}" (${datos.cantidad} un.). Quedó registrada en Compras para su aprobación.`
     productoSeleccionado.value = null
     cerrarModalReponer()
+    alerta.exito(
+      'Orden de compra creada',
+      `Orden de compra creada con éxito para "${prod.nombre}" (${datos.cantidad} un.). Quedó registrada en Compras para su aprobación.`
+    )
   } catch (error) {
-    mensajeError.value = mensajeErrorApi(error)
+    alerta.error('Error al generar orden de compra', mensajeErrorApi(error))
   }
-
-  setTimeout(() => {
-    mensajeExito.value = ''
-    mensajeError.value = ''
-  }, 5000)
 }
 </script>
 
@@ -131,14 +128,6 @@ async function confirmarReposicion(datos: {
           </span>
         </button>
       </div>
-    </div>
-
-    <!-- Alertas -->
-    <div v-if="mensajeExito" class="alert alert-success small py-2 mb-3" role="status">
-      {{ mensajeExito }}
-    </div>
-    <div v-if="mensajeError" class="alert alert-danger small py-2 mb-3" role="status">
-      {{ mensajeError }}
     </div>
 
     <!-- Barra de búsqueda adaptada -->
