@@ -24,7 +24,6 @@ const formulario = ref<{
   producto_id?: number
   nombre: string
   descripcion: string
-  preciounitario: number
   rubro_id: number
   stockminreposicion: number
   stockactual?: number
@@ -32,7 +31,6 @@ const formulario = ref<{
 }>({
   nombre: '',
   descripcion: '',
-  preciounitario: 0,
   rubro_id: 0,
   stockminreposicion: 0
 })
@@ -70,7 +68,6 @@ watch(
         producto_id: nuevoValor.producto_id,
         nombre: nuevoValor.nombre,
         descripcion: nuevoValor.descripcion,
-        preciounitario: nuevoValor.preciounitario ?? 0,
         rubro_id: nuevoValor.rubro_id,
         stockminreposicion: nuevoValor.stockminreposicion,
         stockactual: nuevoValor.stockactual,
@@ -80,7 +77,6 @@ watch(
       formulario.value = {
         nombre: '',
         descripcion: '',
-        preciounitario: 0,
         rubro_id: listaRubros.value[0]?.rubro_id || 0,
         stockminreposicion: 0
       }
