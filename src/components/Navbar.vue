@@ -3,8 +3,8 @@ interface Props {
   moduloActivo?: string
 }
 
-const props = withDefaults(defineProps<Props>(), {
-  moduloActivo: 'proveedores'
+withDefaults(defineProps<Props>(), {
+  moduloActivo: 'inicio'
 })
 
 const emit = defineEmits<{
@@ -22,7 +22,11 @@ function setModule(modulo: string) {
     <div class="container-fluid p-0">
       
       <!-- Marca / Nombre del Sistema -->
-      <a class="navbar-brand d-flex align-items-center gap-2 px-3 py-3 m-0 text-white text-uppercase fw-black letter-spacing" href="#">
+      <a
+        class="navbar-brand d-flex align-items-center gap-2 px-3 py-3 m-0 text-white text-uppercase fw-black letter-spacing"
+        href="#"
+        @click.prevent="setModule('inicio')"
+      >
         <span class="badge-logo rounded-1 d-flex align-items-center justify-content-center fw-bold">
           EC
         </span>
