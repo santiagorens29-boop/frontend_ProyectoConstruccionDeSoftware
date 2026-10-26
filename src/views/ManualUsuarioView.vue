@@ -87,6 +87,84 @@ const preguntasFrecuentes: ItemManual[] = [
   }
 ]
 
+const guiaVentas: ItemManual[] = [
+  {
+    id: 'ventas-clientes',
+    titulo: '¿Cómo dar de alta o modificar un cliente?',
+    contenido:
+      'Ingrese al módulo "Ventas" y seleccione "ABM de Clientes". Para cargar uno nuevo presione "Nuevo Cliente" y complete los datos. Para modificar uno existente, presione el botón "Editar" que aparece en la misma fila del cliente.',
+    puntosClave: [
+      'CUIL / CUIT: debe tener 11 números, sin guiones, y no puede repetirse. Si ya existe un cliente con ese número, el sistema lo avisa y no guarda.',
+      'Condición frente al IVA: es obligatoria, hay que elegir una de las opciones del listado.',
+      'Al presionar "Guardar Cliente" el botón queda inactivo hasta que termina de guardar, para no cargar el mismo cliente dos veces.',
+      'Para buscar, escriba el CUIL o el nombre en el buscador: la búsqueda se hace en el servidor.'
+    ]
+  },
+  {
+    id: 'ventas-generar-orden',
+    titulo: '¿Cómo generar una orden de venta?',
+    contenido:
+      'En "Generar orden de venta" busque al cliente por su CUIL (11 números) con la lupa, agregue los productos desde el buscador de "Detalle de ítems", elija el método de pago y presione "Generar orden de venta".',
+    puntosClave: [
+      'Al buscar el cliente se muestra su nombre y condición frente al IVA. Si modifica el número de CUIL, el cliente anterior se borra y hay que buscarlo de nuevo.',
+      'El tipo de comprobante lo define el sistema según la condición frente al IVA del cliente; no se elige a mano.',
+      'Cada ítem muestra precio unitario y precio total. La cantidad es un número entero, mínimo 1 y como máximo el stock disponible del producto.',
+      'La orden queda en estado "En proceso" y Finanzas la factura desde su sector.'
+    ]
+  },
+  {
+    id: 'ventas-boton-inactivo',
+    titulo: '¿Por qué el botón "Generar orden de venta" aparece inactivo?',
+    contenido:
+      'El botón se habilita recién cuando la orden está completa. Debajo del botón el sistema indica qué falta.',
+    puntosClave: [
+      'Hay que buscar y seleccionar un cliente activo (un cliente dado de baja no puede recibir órdenes).',
+      'Hay que agregar al menos un producto.',
+      'Todas las cantidades deben estar entre 1 y el stock disponible. Un producto sin stock no se puede agregar.'
+    ]
+  },
+  {
+    id: 'ventas-estados',
+    titulo: '¿Qué significa cada estado en "Estado orden venta" y cómo filtrar?',
+    contenido:
+      'La pantalla "Estado orden venta" muestra el historial de órdenes. Cada una tiene un estado: En proceso (todavía no facturada por Finanzas), Confirmada (ya facturada), Devuelta (tiene una nota de crédito) o Anulada.',
+    puntosClave: [
+      'Use el desplegable "Todos los estados" para ver solo las órdenes de un estado.',
+      'El buscador permite encontrar una orden por número de comprobante o por cliente.',
+      'El botón con el ojito (al lado de Anular y Devolver) muestra el motivo de la anulación o el detalle de la devolución. Solo se activa en órdenes anuladas o devueltas.'
+    ]
+  },
+  {
+    id: 'ventas-anular',
+    titulo: '¿Cómo anular una orden de venta?',
+    contenido:
+      'En "Estado orden venta" presione "Anular" en la fila de la orden, elija el motivo, agregue un detalle si lo desea y confirme.',
+    puntosClave: [
+      'Solo se pueden anular órdenes "En proceso" o "Confirmada".',
+      'Una orden anulada no se puede volver a anular ni devolver.',
+      'El motivo queda registrado y se puede consultar después con el ojito.'
+    ]
+  },
+  {
+    id: 'ventas-devolver',
+    titulo: '¿Cómo registrar una devolución (nota de crédito)?',
+    contenido:
+      'En "Estado orden venta" presione "Devolver" en una orden Confirmada. Se abre una ventana donde se marcan los productos a devolver, la cantidad y el destino, y se presiona "Generar nota de crédito".',
+    puntosClave: [
+      'Solo se puede devolver una orden Confirmada, es decir, ya facturada por Finanzas.',
+      'La cantidad a devolver va de 1 hasta la cantidad vendida de ese producto.',
+      'Destino "Stock disponible": el producto vuelve al inventario. Destino "Producto dañado (baja)": no se repone al stock.',
+      'Al terminar la orden pasa a estado "Devuelta".'
+    ]
+  }
+]
+
+const itemAbiertoVentas = ref<string>('ventas-clientes')
+
+function alternarVentas(id: string) {
+  itemAbiertoVentas.value = itemAbiertoVentas.value === id ? '' : id
+}
+
 const itemAbiertoGuia = ref<string>('guia-alta-producto')
 const itemAbiertoFaq = ref<string>('faq-error-conexion')
 
@@ -208,6 +286,53 @@ function alternarFaq(id: string) {
                     <p class="mb-3">{{ faq.contenido }}</p>
                     <ul v-if="faq.puntosClave && faq.puntosClave.length" class="mb-0 ps-3 small">
                       <li v-for="(punto, idx) in faq.puntosClave" :key="idx" class="mb-1">
+                        {{ punto }}
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Sección C: Guía Operativa de Ventas -->
+      <div class="col-12">
+        <div class="card border-0 shadow-sm overflow-hidden">
+          <div class="card-header seccion-header text-white py-3 px-4 d-flex align-items-center gap-2">
+            <span class="badge badge-acento">Sección C</span>
+            <h5 class="fw-bold mb-0 fs-6">Guía Operativa de Ventas (Clientes, Órdenes y Devoluciones)</h5>
+          </div>
+          <div class="card-body p-3 p-md-4 bg-white">
+            <div class="accordion" id="accordionGuiaVentas">
+              <div
+                v-for="item in guiaVentas"
+                :key="item.id"
+                class="accordion-item border rounded mb-2 overflow-hidden"
+              >
+                <h2 class="accordion-header" :id="`heading-${item.id}`">
+                  <button
+                    class="accordion-button fw-semibold text-dark"
+                    :class="{ collapsed: itemAbiertoVentas !== item.id }"
+                    type="button"
+                    :aria-expanded="itemAbiertoVentas === item.id"
+                    :aria-controls="`collapse-${item.id}`"
+                    @click="alternarVentas(item.id)"
+                  >
+                    {{ item.titulo }}
+                  </button>
+                </h2>
+                <div
+                  :id="`collapse-${item.id}`"
+                  class="accordion-collapse collapse"
+                  :class="{ show: itemAbiertoVentas === item.id }"
+                  :aria-labelledby="`heading-${item.id}`"
+                >
+                  <div class="accordion-body bg-light-subtle text-secondary">
+                    <p class="mb-3">{{ item.contenido }}</p>
+                    <ul v-if="item.puntosClave && item.puntosClave.length" class="mb-0 ps-3 small">
+                      <li v-for="(punto, idx) in item.puntosClave" :key="idx" class="mb-1">
                         {{ punto }}
                       </li>
                     </ul>

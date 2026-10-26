@@ -104,7 +104,7 @@ const accionesSidebar = computed<{
         descripcion: 'Buscar cliente por CUIL y generar la orden'
       },
       accion3: {
-        titulo: 'Devoluciones',
+        titulo: 'Estado orden venta',
         descripcion: 'Historial, anulaciones y notas de crédito'
       }
     }
