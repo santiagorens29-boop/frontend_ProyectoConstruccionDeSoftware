@@ -5,7 +5,7 @@ import ModalConfirmacion from '../components/ModalConfirmacion.vue'
 import ModalNuevaOrdenCompra from '../components/ModalNuevaOrdenCompra.vue'
 import ModalVerOrdenesCompra from '../components/ModalVerOrdenesCompra.vue'
 import { normalizarBusqueda } from '../utils/busqueda'
-import { mensajeErrorApi } from '../utils/erroresApi'
+import { mensajeErrorApi, erroresFormularioApi } from '../utils/erroresApi'
 import type { ProductoProveedor } from '../services/productosService'
 import { obtenerCatalogoProductosProveedor } from '../services/proveedoresService'
 import { editarOrdenCompra, actualizarEstadoCompra, claseEstadoCompra, buscarEstadoCompra, normalizarEstadoCompra, crearOrdenCompra, obtenerProveedores, etiquetaEstadoCompra, obtenerEstadosCompra, sincronizarComprasFacturadas, obtenerOrdenesCompra, presentarDetalles, presentarOrden, transicionPermitida, type OrdenCompraAPI } from '../services/comprasService'
@@ -24,6 +24,7 @@ const cargandoFacturas = ref(false)
 const catalogosListos = ref(false)
 const errorConsulta = ref('')
 const errorGuardado = ref('')
+const erroresCampos = ref<Record<string, string>>({})
 const errorEstado = ref('')
 const errorFacturas = ref('')
 const mensaje = ref('')
@@ -113,6 +114,7 @@ async function abrirNuevaOrden() {
   await cargar()
   if (errorConsulta.value) return
   errorGuardado.value = ''
+  erroresCampos.value = {}
   mostrarNuevaOrden.value = true
 }
 
@@ -150,6 +152,7 @@ async function abrirEdicion(id: number) {
   }
   ordenAEditar.value = ordenesAPI.value.find(o => o.ordencompra_id === id) ?? null
   errorGuardado.value = ''
+  erroresCampos.value = {}
   mostrarConsultaOrdenes.value = false
   mostrarNuevaOrden.value = true
 }
@@ -158,6 +161,7 @@ async function guardarOrden(datos: NuevaOrdenCompra) {
   if (guardando.value) return
   guardando.value = true
   errorGuardado.value = ''
+  erroresCampos.value = {}
   try {
     const id = ordenAEditar.value?.ordencompra_id
     if (id && cabeceras.value.find(o => o.ordencompra_id === id)?.estado !== 'pendiente') throw new Error('Solo se pueden editar órdenes en estado Pendiente.')
@@ -168,7 +172,18 @@ async function guardarOrden(datos: NuevaOrdenCompra) {
     } else ordenesAPI.value.unshift(orden)
     mostrarNuevaOrden.value = false
     mensaje.value = `Orden #${orden.ordencompra_id} ${id ? 'actualizada' : 'creada'} correctamente.`
-  } catch (error) { errorGuardado.value = (error instanceof Error && !('isAxiosError' in error) ? error.message : mensajeErrorApi(error)) }
+  } catch (error) {
+    const resultado = erroresFormularioApi(error, ruta => {
+      if (ruta === 'proveedor' || ruta === 'proveedor_id') return 'proveedor'
+      if (['fecha', 'total', 'detalles'].includes(ruta)) return ruta
+      if (/^detalles\.\d+\.(producto_id|cantidad|precio_unitario|subtotal)$/.test(ruta)) return ruta
+      const detalle = /^detalles\.(\d+)/.exec(ruta)
+      if (detalle) return 'detalles.' + detalle[1] + '.producto_id'
+      return undefined
+    })
+    errorGuardado.value = resultado.general
+    erroresCampos.value = resultado.campos
+  }
   finally { guardando.value = false }
 }
 
@@ -306,7 +321,7 @@ onBeforeUnmount(() => window.removeEventListener('focus', actualizarAlVolver))
       <span class="text-muted small" role="status">Mostrando {{ ordenesVisibles.length }} de {{ ordenesFiltradas.length }} órdenes</span>
       <button v-if="hayMasOrdenes" type="button" class="btn btn-outline-coralon" :disabled="accionesBloqueadas" @click="cargarMas">Cargar más</button>
     </div>
-    <ModalNuevaOrdenCompra :orden-a-editar="ordenAEditar" :mostrar="mostrarNuevaOrden" :guardando="guardando" :error="errorGuardado" :proveedores="proveedores" :productos="productos" @cerrar="mostrarNuevaOrden = false" @guardar="guardarOrden" />
+    <ModalNuevaOrdenCompra :orden-a-editar="ordenAEditar" :mostrar="mostrarNuevaOrden" :guardando="guardando" :error="errorGuardado" :errores-campos="erroresCampos" @limpiar-error="campo => { delete erroresCampos[campo] }" :proveedores="proveedores" :productos="productos" @cerrar="mostrarNuevaOrden = false" @guardar="guardarOrden" />
     <ModalVerOrdenesCompra @editar="abrirEdicion" :mostrar="mostrarConsultaOrdenes" :orden-inicial-id="ordenConsultaId" :ordenes="cabeceras" :detalles="detalles" :proveedores="proveedores" :productos="productos" :estados="estados" :facturas="facturas" :cargando-facturas="cargandoFacturas" :error-facturas="errorFacturas" :actualizando="accionesBloqueadas" :error="errorEstado" :mensaje="mensaje" @cerrar="mostrarConsultaOrdenes = false" @cambiar-estado="cambiarEstado" @reintentar-facturas="cargarFacturas" />
     <ModalConfirmacion v-if="mensajeConfirmacion" :mensaje="mensajeConfirmacion" @resolver="resolverCambioEstado" />
   </div>
