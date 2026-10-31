@@ -53,6 +53,7 @@ const nombreProveedor = (id: number) => {
   const proveedor = proveedores.value.find(p => p.proveedor_id === id)
   return proveedor ? `${proveedor.nombre} ${proveedor.apellido}` : `Proveedor #${id}`
 }
+const cuitProveedor = (id: number) => proveedores.value.find(proveedor => proveedor.proveedor_id === id)?.cuit || 'Sin CUIT'
 const nombreProducto = (id: number) => productos.value.find(p => p.id === id)?.nombre ?? `Producto #${id}`
 const moneda = (valor: number) => valor.toLocaleString('es-AR', { style: 'currency', currency: 'ARS' })
 const fechaVisible = (valor: string) => new Date(valor).toLocaleDateString('es-AR')
@@ -281,6 +282,7 @@ onBeforeUnmount(() => window.removeEventListener('focus', actualizarAlVolver))
               <span class="badge" :class="claseEstadoCompra(orden.estado)">{{ etiquetaEstadoCompra(orden.estado) }}</span>
             </span>
             <span class="fw-semibold text-break">{{ nombreProveedor(orden.proveedor_id) }}</span>
+            <span class="badge badge-cuit font-monospace align-self-start mt-1">CUIT: {{ cuitProveedor(orden.proveedor_id) }}</span>
             <span class="small text-muted mt-1">Fecha: {{ fechaVisible(orden.fecha) }}</span>
             <span class="d-block border-top pt-2 mt-3 w-100">
               <span class="small text-muted d-block mb-1">Productos y cantidades</span>
@@ -301,6 +303,7 @@ onBeforeUnmount(() => window.removeEventListener('focus', actualizarAlVolver))
         <thead class="table-dark-custom"><tr>
           <th scope="col" :aria-sort="ariaOrden('numero')"><button type="button" class="ordenar-columna" :aria-label="etiquetaOrden('numero', 'número de orden')" @click="ordenarPor('numero')">N° Orden <span aria-hidden="true">{{ indicadorOrden('numero') }}</span></button></th>
           <th scope="col" :aria-sort="ariaOrden('proveedor')"><button type="button" class="ordenar-columna" :aria-label="etiquetaOrden('proveedor', 'proveedor')" @click="ordenarPor('proveedor')">Proveedor <span aria-hidden="true">{{ indicadorOrden('proveedor') }}</span></button></th>
+          <th scope="col">CUIT</th>
           <th>Productos y cantidades</th>
           <th scope="col" :aria-sort="ariaOrden('fecha')"><button type="button" class="ordenar-columna" :aria-label="etiquetaOrden('fecha', 'fecha')" @click="ordenarPor('fecha')">Fecha <span aria-hidden="true">{{ indicadorOrden('fecha') }}</span></button></th>
           <th>Estado</th><th class="text-end">Total</th>
@@ -309,11 +312,12 @@ onBeforeUnmount(() => window.removeEventListener('focus', actualizarAlVolver))
           <tr v-for="orden in ordenesVisibles" :key="orden.ordencompra_id" class="orden-seleccionable" @click="abrirConsulta(orden.ordencompra_id)">
             <td><button class="btn p-0 text-reset text-decoration-none" :disabled="accionesBloqueadas" @click.stop="abrirConsulta(orden.ordencompra_id)">#{{ orden.ordencompra_id }}</button></td>
             <td>{{ nombreProveedor(orden.proveedor_id) }}</td>
+            <td class="text-nowrap"><span class="badge badge-cuit font-monospace">{{ cuitProveedor(orden.proveedor_id) }}</span></td>
             <td><div v-for="detalle in detalles.filter(d => d.ordencompra_id === orden.ordencompra_id)" :key="detalle.ordencompradetalle_id">{{ nombreProducto(detalle.producto_id) }} × {{ detalle.cantidad }}</div></td>
             <td>{{ fechaVisible(orden.fecha) }}</td><td><span class="badge" :class="claseEstadoCompra(orden.estado)">{{ etiquetaEstadoCompra(orden.estado) }}</span></td><td class="text-end text-nowrap">{{ moneda(orden.total) }}</td>
           </tr>
-          <tr v-if="cargando"><td colspan="6" class="text-center p-4">Cargando órdenes…</td></tr>
-          <tr v-else-if="!errorConsulta && !ordenesFiltradas.length"><td colspan="6" class="text-center p-4 text-muted">{{ filtroBusqueda || filtroEstado ? 'No hay órdenes que coincidan con los filtros.' : 'No hay órdenes registradas.' }}</td></tr>
+          <tr v-if="cargando"><td colspan="7" class="text-center p-4">Cargando órdenes…</td></tr>
+          <tr v-else-if="!errorConsulta && !ordenesFiltradas.length"><td colspan="7" class="text-center p-4 text-muted">{{ filtroBusqueda || filtroEstado ? 'No hay órdenes que coincidan con los filtros.' : 'No hay órdenes registradas.' }}</td></tr>
         </tbody>
       </table>
     </div></div>
@@ -327,6 +331,12 @@ onBeforeUnmount(() => window.removeEventListener('focus', actualizarAlVolver))
   </div>
 </template>
 <style scoped>
+.badge-cuit {
+  background-color: #332d2a;
+  color: #c9881e;
+  font-weight: 500;
+  padding: 0.4em 0.6em;
+}
 .orden-seleccionable { cursor: pointer; }
 .orden-tarjeta { border: 1px solid #e4dfdc; color: inherit; font: inherit; }
 .orden-tarjeta:hover:not(:disabled) { border-color: #b33e14; background-color: #fff8f4; }
