@@ -75,6 +75,17 @@ const errorIva = computed(() => {
   return ''
 })
 
+// Cada vez que se abre el modal arranca de cero (o con los datos del cliente a editar):
+// así "Nuevo Cliente" nunca muestra lo cargado la vez anterior
+watch(
+  () => props.mostrar,
+  (visible) => {
+    if (!visible) return
+    formulario.value = props.clienteAEditar ? { ...props.clienteAEditar } : formularioVacio()
+    ivaTocado.value = false
+  }
+)
+
 function cerrarModal() {
   if (props.guardando) return
   ivaTocado.value = false
@@ -148,6 +159,7 @@ function guardarCliente() {
                     v-model="formulario.nombre"
                     type="text"
                     class="form-control custom-input"
+                    maxlength="150"
                     placeholder="Nombre y apellido o razón social"
                     required
                   />
@@ -160,6 +172,7 @@ function guardarCliente() {
                     v-model="formulario.telefono"
                     type="text"
                     class="form-control custom-input"
+                    maxlength="50"
                     placeholder="11-4455-6677"
                   />
                 </div>
@@ -171,6 +184,7 @@ function guardarCliente() {
                     v-model="formulario.email"
                     type="email"
                     class="form-control custom-input"
+                    maxlength="100"
                     placeholder="cliente@correo.com"
                   />
                 </div>
@@ -178,7 +192,12 @@ function guardarCliente() {
                 <!-- Estado -->
                 <div class="col-md-4">
                   <label class="form-label fw-semibold text-dark">Estado</label>
-                  <select v-model="formulario.estado" class="form-select custom-input">
+                  <select
+                    v-model="formulario.estado"
+                    class="form-select custom-input"
+                    :disabled="!clienteAEditar"
+                    :title="clienteAEditar ? '' : 'Los clientes nuevos siempre se crean activos'"
+                  >
                     <option value="Activo">Activo</option>
                     <option value="Inactivo">Inactivo</option>
                   </select>
@@ -191,6 +210,7 @@ function guardarCliente() {
                     v-model="formulario.direccion"
                     type="text"
                     class="form-control custom-input"
+                    maxlength="200"
                     placeholder="Calle, número, localidad"
                   />
                 </div>
