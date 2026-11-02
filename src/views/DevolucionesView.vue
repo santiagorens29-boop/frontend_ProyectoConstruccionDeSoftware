@@ -1,15 +1,17 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue'
-import { DESTINOS_DEVOLUCION, ESTADOS_VENTA, type VentaHistorial } from '../types/devolucion'
+import { DESTINOS_DEVOLUCION, ESTADOS_VENTA, type ItemVentaHistorial, type VentaHistorial } from '../types/devolucion'
 import {
   obtenerOrdenesVenta,
   obtenerMotivoOrden,
+  obtenerDevueltoPorProducto,
   anularOrdenVenta,
   crearNotaCredito,
   textoError,
 } from '../services/ventasService'
 import ModalAnulacion from '../components/ModalAnulacion.vue'
 import { avisoError, avisoExito, avisoInfo } from '../utils/avisos'
+import { pesos } from '../utils/formatoVentas'
 
 const ventas = ref<VentaHistorial[]>([])
 const cargando = ref(false)
@@ -46,32 +48,32 @@ onBeforeUnmount(() => clearTimeout(temporizador))
 
 // Color de cada estado
 function claseEstado(estado: VentaHistorial['estado']): string {
-  if (estado === 'Confirmada') return 'bg-success'
-  if (estado === 'Devuelta') return 'bg-warning text-dark'
+  if (estado === 'Devolución total') return 'bg-success'
+  if (estado === 'Devolución parcial') return 'bg-warning text-dark'
   if (estado === 'Anulada') return 'bg-danger'
-  return 'bg-secondary' // En proceso
+  return 'bg-secondary' // Pendiente
 }
 
-// Qué se puede hacer con cada orden según su estado
+// Qué se puede hacer con cada orden según su estado (las mismas reglas que valida el servidor)
 function puedeAnular(venta: VentaHistorial): boolean {
-  return venta.estado === 'En proceso' || venta.estado === 'Confirmada'
+  return venta.estado === 'Pendiente'
 }
 
-// Una devolución genera una nota de crédito, que solo existe si la orden fue facturada
 function puedeDevolver(venta: VentaHistorial): boolean {
-  return venta.estado === 'Confirmada'
+  return venta.estado === 'Pendiente' || venta.estado === 'Devolución parcial'
 }
 
 function motivoAnular(venta: VentaHistorial): string {
-  return puedeAnular(venta) ? '' : `No se puede anular una orden ${venta.estado.toLowerCase()}.`
+  return puedeAnular(venta) ? '' : `Solo se puede anular una orden pendiente (esta está en "${venta.estado}").`
 }
 
 function motivoDevolver(venta: VentaHistorial): string {
   if (puedeDevolver(venta)) return ''
-  if (venta.estado === 'En proceso') return 'Solo se puede devolver una orden facturada por Finanzas.'
-  return `No se puede devolver una orden ${venta.estado.toLowerCase()}.`
+  if (venta.estado === 'Anulada') return 'Una orden anulada no se puede devolver.'
+  return 'Esta orden ya se devolvió por completo.'
 }
-// Filtro por estado: el estado de cada orden se calcula en esta pantalla, por eso se filtra acá
+
+// Filtro por estado: el servidor no tiene este filtro, por eso se aplica sobre las órdenes ya cargadas
 const filtroEstado = ref<'' | VentaHistorial['estado']>('')
 
 const ventasFiltradas = computed(() =>
@@ -80,11 +82,12 @@ const ventasFiltradas = computed(() =>
 
 // Ojito: motivo de la anulación o detalle de la devolución
 function tieneMotivo(venta: VentaHistorial): boolean {
-  return venta.estado === 'Anulada' || venta.estado === 'Devuelta'
+  return venta.estado !== 'Pendiente'
 }
 
 function textoOjito(venta: VentaHistorial): string {
-  return tieneMotivo(venta) ? 'Ver el motivo' : 'Esta orden no tiene anulación ni devolución.'
+  if (venta.estado === 'Anulada') return 'Ver el motivo de la anulación'
+  return tieneMotivo(venta) ? 'Ver el detalle de la devolución' : 'Esta orden no tiene anulación ni devolución.'
 }
 
 async function verMotivo(venta: VentaHistorial) {
@@ -111,7 +114,11 @@ function cerrarModalAnular() {
   ventaAAnular.value = null
 }
 
+const anulando = ref(false)
+
 async function confirmarAnulacion(datos: { ventaId: number; motivo: string; detalle: string }) {
+  if (anulando.value) return // evita anular dos veces con un doble clic
+  anulando.value = true
   try {
     await anularOrdenVenta(datos.ventaId, datos.motivo, datos.detalle)
     cerrarModalAnular()
@@ -119,11 +126,15 @@ async function confirmarAnulacion(datos: { ventaId: number; motivo: string; deta
   } catch (err) {
     console.error(err)
     avisoError(textoError(err), 'No se pudo anular la orden')
+  } finally {
+    anulando.value = false
   }
 }
 
 // --- Nota de crédito (devolución) ---
-const ventaParaDevolver = ref<VentaHistorial | null>(null);
+const ventaParaDevolver = ref<VentaHistorial | null>(null)
+const devueltoPorProducto = ref<Record<number, number>>({})
+const cargandoDevolucion = ref(false)
 const itemsSeleccionados = ref<Record<number, { seleccionado: boolean; cantidad: number; destino: string }>>({})
 
 function cerrarDevolucion() {
@@ -131,33 +142,46 @@ function cerrarDevolucion() {
   ventaParaDevolver.value = null
 }
 
-function iniciarDevolucion(venta: VentaHistorial) {
-  ventaParaDevolver.value = venta
+// Lo que todavía se puede devolver de un producto: lo vendido menos lo ya devuelto
+function pendienteDeDevolver(item: ItemVentaHistorial): number {
+  return item.cantidadVendida - (devueltoPorProducto.value[item.productoId] ?? 0)
+}
+
+async function iniciarDevolucion(venta: VentaHistorial) {
+  cargandoDevolucion.value = true
+  try {
+    devueltoPorProducto.value = await obtenerDevueltoPorProducto(venta)
+  } catch (err) {
+    console.error(err)
+    avisoError(textoError(err), 'No se pudo preparar la devolución')
+    return
+  } finally {
+    cargandoDevolucion.value = false
+  }
   itemsSeleccionados.value = {}
   venta.items.forEach((item) => {
     itemsSeleccionados.value[item.productoId] = {
       seleccionado: false,
-      cantidad: 0,
+      cantidad: 1,
       destino: DESTINOS_DEVOLUCION[0],
     }
   })
+  ventaParaDevolver.value = venta
 }
 
 const itemsSeleccionadosCount = computed(
   () => Object.values(itemsSeleccionados.value).filter((i) => i.seleccionado).length
 )
 
-// Monto a reembolsar: proporcional al precio promedio del total original
-// (simplificado, sin precios unitarios reales en el historial)
+// Monto estimado a reembolsar: lo realmente cobrado por cada producto (con su descuento), en proporción a lo que se devuelve.
+// El monto definitivo lo calcula el servidor al generar la nota de crédito.
 const montoAReembolsar = computed(() => {
-  if (!ventaParaDevolver.value) return 0
-  const totalCantidadVendida = ventaParaDevolver.value.items.reduce((acc, i) => acc + i.cantidadVendida, 0)
-  if (totalCantidadVendida === 0) return 0
-  const precioPromedio = ventaParaDevolver.value.total / totalCantidadVendida
-
-  return Object.values(itemsSeleccionados.value).reduce((acc, item) => {
-    if (!item.seleccionado) return acc
-    return acc + item.cantidad * precioPromedio
+  const venta = ventaParaDevolver.value
+  if (!venta) return 0
+  return venta.items.reduce((acc, item) => {
+    const seleccion = itemsSeleccionados.value[item.productoId]
+    if (!seleccion?.seleccionado || item.cantidadVendida === 0) return acc
+    return acc + (item.subtotal * seleccion.cantidad) / item.cantidadVendida
   }, 0)
 })
 
@@ -174,16 +198,16 @@ async function generarNotaCredito() {
     .filter((i) => itemsSeleccionados.value[i.productoId]?.seleccionado)
     .map((i) => ({
       productoId: i.productoId,
-      cantidadVendida: i.cantidadVendida,
+      maximo: pendienteDeDevolver(i),
       nombre: i.nombre,
       cantidad: itemsSeleccionados.value[i.productoId]!.cantidad,
       destino: itemsSeleccionados.value[i.productoId]!.destino,
     }))
 
-  const invalido = items.find((i) => !Number.isInteger(i.cantidad) || i.cantidad < 1 || i.cantidad > i.cantidadVendida)
+  const invalido = items.find((i) => !Number.isInteger(i.cantidad) || i.cantidad < 1 || i.cantidad > i.maximo)
   if (invalido) {
     avisoError(
-      `La cantidad a devolver de "${invalido.nombre}" debe estar entre 1 y ${invalido.cantidadVendida}.`,
+      `La cantidad a devolver de "${invalido.nombre}" debe estar entre 1 y ${invalido.maximo}.`,
       'Cantidad inválida',
     )
     return
@@ -191,13 +215,11 @@ async function generarNotaCredito() {
 
   guardandoNota.value = true
   try {
-    await crearNotaCredito({
+    const { monto } = await crearNotaCredito({
       ordenId: ventaParaDevolver.value.id,
-      monto: montoAReembolsar.value,
-      saldoAFavor: false,
       items: items.map((i) => ({ productoId: i.productoId, cantidad: i.cantidad, destino: i.destino })),
     })
-    avisoExito(`Monto: $${montoAReembolsar.value.toLocaleString('es-AR')}`, 'Nota de crédito generada')
+    avisoExito(`Monto: $${pesos(monto)}`, 'Nota de crédito generada')
     ventaParaDevolver.value = null
     await cargarVentas()
   } catch (err) {
@@ -227,7 +249,7 @@ async function generarNotaCredito() {
           </div>
         </div>
         <p class="small text-muted mb-0 mt-3">
-          Ventas genera la orden y Finanzas la factura desde su sector. Cuando está facturada pasa a Confirmada y recién ahí se puede devolver.
+          Solo se puede anular una orden Pendiente. Se puede devolver una orden Pendiente o con devolución parcial, hasta completar lo vendido.
         </p>
       </div>
     </div>
@@ -266,7 +288,7 @@ async function generarNotaCredito() {
               <td class="ps-3 fw-bold">{{ venta.comprobante }}</td>
               <td>{{ venta.fecha }}</td>
               <td>{{ venta.cliente }}</td>
-              <td>${{ venta.total.toLocaleString('es-AR') }}</td>
+              <td>${{ pesos(venta.total) }}</td>
               <td>
                 <span class="badge" :class="claseEstado(venta.estado)">{{ venta.estado }}</span>
               </td>
@@ -283,7 +305,7 @@ async function generarNotaCredito() {
                 <button
                   class="btn btn-sm btn-outline-secondary me-2"
                   type="button"
-                  :disabled="!puedeDevolver(venta)"
+                  :disabled="!puedeDevolver(venta) || cargandoDevolucion"
                   :title="motivoDevolver(venta)"
                   @click="iniciarDevolucion(venta)"
                 >
@@ -362,6 +384,7 @@ async function generarNotaCredito() {
                   <th class="ps-3"></th>
                   <th>Producto</th>
                   <th>Cant. Vendida</th>
+                  <th>Ya devuelta</th>
                   <th>Cant. a Devolver</th>
                   <th class="pe-3">Destino</th>
                 </tr>
@@ -369,16 +392,21 @@ async function generarNotaCredito() {
               <tbody>
                 <tr v-for="item in ventaParaDevolver.items" :key="item.productoId">
                   <td class="ps-3">
-                    <input type="checkbox" v-model="itemsSeleccionados[item.productoId].seleccionado" />
+                    <input
+                      type="checkbox"
+                      v-model="itemsSeleccionados[item.productoId].seleccionado"
+                      :disabled="pendienteDeDevolver(item) < 1"
+                    />
                   </td>
                   <td>{{ item.nombre }}</td>
                   <td>{{ item.cantidadVendida }}</td>
+                  <td>{{ devueltoPorProducto[item.productoId] ?? 0 }}</td>
                   <td style="width: 110px;">
                     <input
                       v-model.number="itemsSeleccionados[item.productoId].cantidad"
                       type="number"
-                      min="0"
-                      :max="item.cantidadVendida"
+                      min="1"
+                      :max="pendienteDeDevolver(item)"
                       class="form-control form-control-sm"
                       :disabled="!itemsSeleccionados[item.productoId].seleccionado"
                     />
@@ -408,8 +436,8 @@ async function generarNotaCredito() {
               <span>{{ itemsSeleccionadosCount }}</span>
             </div>
             <div class="d-flex justify-content-between mb-3 fw-bold">
-              <span>Monto a reembolsar</span>
-              <span>${{ montoAReembolsar.toLocaleString('es-AR', { maximumFractionDigits: 0 }) }}</span>
+              <span>Monto a reembolsar (estimado)</span>
+              <span>${{ pesos(montoAReembolsar) }}</span>
             </div>
 
             <button class="btn btn-coralon w-100 fw-semibold" type="button" :disabled="guardandoNota" @click="generarNotaCredito">

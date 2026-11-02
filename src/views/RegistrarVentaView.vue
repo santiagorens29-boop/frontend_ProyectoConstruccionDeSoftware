@@ -1,27 +1,28 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import type { Cliente } from '../types/cliente'
-import { METODOS_PAGO, IVA_PORCENTAJE, type ItemVenta, type ProductoVenta } from '../types/venta'
+import { METODOS_PAGO, type ItemVenta, type ProductoVenta } from '../types/venta'
 import {
-  obtenerClientes,
   obtenerProductosVenta,
   buscarClientePorCuil,
   crearOrdenVenta,
   textoError,
 } from '../services/ventasService'
 import { avisoError, avisoExito } from '../utils/avisos'
+import { pesos } from '../utils/formatoVentas'
 
 // --- Datos que vienen del backend ---
-const clientesRegistrados = ref<Cliente[]>([])
 const productosDisponibles = ref<ProductoVenta[]>([])
 const errorCarga = ref('')
 
 async function cargarDatos() {
   try {
-    ;[clientesRegistrados.value, productosDisponibles.value] = await Promise.all([
-      obtenerClientes(),
-      obtenerProductosVenta(),
-    ])
+    productosDisponibles.value = await obtenerProductosVenta()
+    // Si el stock cambió mientras tanto, los ítems ya cargados toman el stock actual
+    for (const item of items.value) {
+      const producto = productosDisponibles.value.find((p) => p.producto_id === item.productoId)
+      if (producto) item.stock = producto.stock
+    }
   } catch (err) {
     console.error(err)
     errorCarga.value = textoError(err)
@@ -101,6 +102,10 @@ const sugerencias = computed<ProductoVenta[]>(() => {
 })
 
 function agregarProducto(producto: ProductoVenta) {
+  if (producto.sinPrecio) {
+    avisoError(`"${producto.nombre}" todavía no tiene precio de venta: ningún proveedor activo le cargó un precio.`, 'Sin precio')
+    return
+  }
   if (producto.stock < 1) {
     avisoError(`"${producto.nombre}" no tiene stock disponible.`, 'Sin stock')
     return
@@ -146,13 +151,12 @@ function quitarItem(id: number) {
 }
 
 function subtotalItem(item: ItemVenta) {
-  return item.cantidad * item.precioUnitario
+  return Math.round(item.cantidad * item.precioUnitario * 100) / 100
 }
 
-// --- Totales ---
-const subtotal = computed(() => items.value.reduce((acc, item) => acc + subtotalItem(item), 0))
-const iva = computed(() => subtotal.value * IVA_PORCENTAJE)
-const total = computed(() => subtotal.value + iva.value)
+// --- Total ---
+// El servidor calcula el total igual: suma de precio unitario x cantidad de cada ítem
+const total = computed(() => items.value.reduce((acc, item) => acc + subtotalItem(item), 0))
 
 // --- Método de pago ---
 const metodoPago = ref(METODOS_PAGO[0])
@@ -198,15 +202,15 @@ async function generarOrdenVenta() {
   guardando.value = true
   try {
     const orden = await crearOrdenVenta({
-      clienteId: clienteEncontrado.value.cliente_id,
+      cuil: clienteEncontrado.value.cuil,
       metodoPago: metodoPago.value,
       tipoComprobante: tipoComprobante.value,
       items: items.value.map((i) => ({ productoId: i.productoId, cantidad: i.cantidad })),
     })
     avisoExito(
       `Orden de venta N° ${orden.id} generada.\n` +
-        `Total: $${orden.total.toLocaleString('es-AR')}\n` +
-        'Estado: En proceso. Finanzas la factura desde su sector.',
+        `Total: $${pesos(orden.total)}\n` +
+        'Estado: Pendiente.',
       'Orden de venta creada',
     )
 
@@ -217,6 +221,7 @@ async function generarOrdenVenta() {
   } catch (err) {
     console.error(err)
     avisoError(textoError(err), 'No se pudo generar la orden de venta')
+    await cargarDatos() // por si el error fue de stock o de precios: se trae lo último
   } finally {
     guardando.value = false
   }
@@ -315,8 +320,11 @@ async function generarOrdenVenta() {
                   @mousedown.prevent="agregarProducto(producto)"
                 >
                   <span>{{ producto.nombre }}</span>
-                  <span class="small" :class="producto.stock < 1 ? 'text-danger' : 'text-muted'">
-                    {{ producto.stock < 1 ? 'Sin stock' : `Stock: ${producto.stock}` }} · ${{ producto.preciounitario.toLocaleString('es-AR') }}
+                  <span class="small" :class="producto.sinPrecio || producto.stock < 1 ? 'text-danger' : 'text-muted'">
+                    <template v-if="producto.sinPrecio">Sin precio</template>
+                    <template v-else>
+                      {{ producto.stock < 1 ? 'Sin stock' : `Stock: ${producto.stock}` }} · ${{ pesos(producto.preciounitario) }}
+                    </template>
                   </span>
                 </li>
               </ul>
@@ -355,8 +363,8 @@ async function generarOrdenVenta() {
                     />
                     <div class="text-muted" style="font-size: 0.7rem;">máx. {{ item.stock }}</div>
                   </td>
-                  <td>${{ item.precioUnitario.toLocaleString('es-AR') }}</td>
-                  <td class="fw-bold">${{ subtotalItem(item).toLocaleString('es-AR') }}</td>
+                  <td>${{ pesos(item.precioUnitario) }}</td>
+                  <td class="fw-bold">${{ pesos(subtotalItem(item)) }}</td>
                   <td class="pe-3 text-end">
                     <button class="btn btn-sm btn-outline-danger" type="button" @click="quitarItem(item.id)">🗑️</button>
                   </td>
@@ -379,17 +387,13 @@ async function generarOrdenVenta() {
             <h6 class="fw-bold mb-3">Resumen</h6>
 
             <div class="d-flex justify-content-between mb-2">
-              <span class="text-muted">Subtotal</span>
-              <span>${{ subtotal.toLocaleString('es-AR') }}</span>
-            </div>
-            <div class="d-flex justify-content-between mb-2">
-              <span class="text-muted">IVA (21%)</span>
-              <span>${{ iva.toLocaleString('es-AR', { maximumFractionDigits: 0 }) }}</span>
+              <span class="text-muted">Ítems</span>
+              <span>{{ items.length }}</span>
             </div>
             <hr />
             <div class="d-flex justify-content-between mb-3 fs-5 fw-bold">
               <span>Total</span>
-              <span>${{ total.toLocaleString('es-AR', { maximumFractionDigits: 0 }) }}</span>
+              <span>${{ pesos(total) }}</span>
             </div>
 
             <label class="form-label fw-semibold">Método de pago</label>

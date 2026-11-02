@@ -109,7 +109,8 @@ const guiaVentas: ItemManual[] = [
       'Al buscar el cliente se muestra su nombre y condición frente al IVA. Si modifica el número de CUIL, el cliente anterior se borra y hay que buscarlo de nuevo.',
       'El tipo de comprobante lo define el sistema según la condición frente al IVA del cliente; no se elige a mano.',
       'Cada ítem muestra precio unitario y precio total. La cantidad es un número entero, mínimo 1 y como máximo el stock disponible del producto.',
-      'La orden queda en estado "En proceso" y Finanzas la factura desde su sector.'
+      'El precio unitario lo calcula el sistema: precio de compra del proveedor más 30 %. Un producto sin precio de proveedor no se puede vender.',
+      'La orden queda en estado "Pendiente".'
     ]
   },
   {
@@ -120,14 +121,14 @@ const guiaVentas: ItemManual[] = [
     puntosClave: [
       'Hay que buscar y seleccionar un cliente activo (un cliente dado de baja no puede recibir órdenes).',
       'Hay que agregar al menos un producto.',
-      'Todas las cantidades deben estar entre 1 y el stock disponible. Un producto sin stock no se puede agregar.'
+      'Todas las cantidades deben estar entre 1 y el stock disponible. Un producto sin stock o sin precio no se puede agregar.'
     ]
   },
   {
     id: 'ventas-estados',
     titulo: '¿Qué significa cada estado en "Estado orden venta" y cómo filtrar?',
     contenido:
-      'La pantalla "Estado orden venta" muestra el historial de órdenes. Cada una tiene un estado: En proceso (todavía no facturada por Finanzas), Confirmada (ya facturada), Devuelta (tiene una nota de crédito) o Anulada.',
+      'La pantalla "Estado orden venta" muestra el historial de órdenes. Cada una tiene un estado: Pendiente (recién generada), Anulada, Devolución parcial (se devolvió una parte de lo vendido) o Devolución total (se devolvió todo).',
     puntosClave: [
       'Use el desplegable "Todos los estados" para ver solo las órdenes de un estado.',
       'El buscador permite encontrar una orden por número de comprobante o por cliente.',
@@ -140,7 +141,8 @@ const guiaVentas: ItemManual[] = [
     contenido:
       'En "Estado orden venta" presione "Anular" en la fila de la orden, elija el motivo, agregue un detalle si lo desea y confirme.',
     puntosClave: [
-      'Solo se pueden anular órdenes "En proceso" o "Confirmada".',
+      'Solo se pueden anular órdenes "Pendiente".',
+      'Al anular, el stock de los productos vuelve al inventario.',
       'Una orden anulada no se puede volver a anular ni devolver.',
       'El motivo queda registrado y se puede consultar después con el ojito.'
     ]
@@ -149,12 +151,12 @@ const guiaVentas: ItemManual[] = [
     id: 'ventas-devolver',
     titulo: '¿Cómo registrar una devolución (nota de crédito)?',
     contenido:
-      'En "Estado orden venta" presione "Devolver" en una orden Confirmada. Se abre una ventana donde se marcan los productos a devolver, la cantidad y el destino, y se presiona "Generar nota de crédito".',
+      'En "Estado orden venta" presione "Devolver" en una orden Pendiente o con devolución parcial. Se abre una ventana donde se marcan los productos a devolver, la cantidad y el destino, y se presiona "Generar nota de crédito".',
     puntosClave: [
-      'Solo se puede devolver una orden Confirmada, es decir, ya facturada por Finanzas.',
-      'La cantidad a devolver va de 1 hasta la cantidad vendida de ese producto.',
+      'Solo se puede devolver una orden Pendiente o con devolución parcial. Una orden anulada no se devuelve.',
+      'La cantidad a devolver va de 1 hasta lo que todavía no se devolvió de ese producto.',
       'Destino "Stock disponible": el producto vuelve al inventario. Destino "Producto dañado (baja)": no se repone al stock.',
-      'Al terminar la orden pasa a estado "Devuelta".'
+      'Si se devuelve una parte la orden pasa a "Devolución parcial"; si se devuelve todo, a "Devolución total". El monto de la nota de crédito lo calcula el sistema.'
     ]
   }
 ]

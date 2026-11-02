@@ -1,17 +1,19 @@
-export type EstadoVenta = 'En proceso' | 'Confirmada' | 'Devuelta' | 'Anulada'
+// Estados de una orden de venta, tal como los define el servidor
+export type EstadoVenta = 'Pendiente' | 'Anulada' | 'Devolución parcial' | 'Devolución total'
 
 // Qué significa cada estado de una orden de venta (se muestra en la pantalla de Estado orden venta)
 export const ESTADOS_VENTA: { estado: EstadoVenta; descripcion: string }[] = [
-  { estado: 'En proceso', descripcion: 'La orden se generó y Finanzas todavía no la facturó.' },
-  { estado: 'Confirmada', descripcion: 'Finanzas ya la facturó. Es la única que se puede devolver.' },
-  { estado: 'Devuelta', descripcion: 'Se hizo una nota de crédito con la devolución de productos.' },
-  { estado: 'Anulada', descripcion: 'La orden se anuló y se repuso el stock.' },
+  { estado: 'Pendiente', descripcion: 'La orden se generó. Se puede anular o devolver.' },
+  { estado: 'Anulada', descripcion: 'La orden se anuló y se repuso el stock. No admite más cambios.' },
+  { estado: 'Devolución parcial', descripcion: 'Se devolvió una parte de lo vendido. Todavía se puede devolver el resto.' },
+  { estado: 'Devolución total', descripcion: 'Se devolvió todo lo vendido.' },
 ]
 
 export interface ItemVentaHistorial {
   productoId: number
   nombre: string
   cantidadVendida: number
+  subtotal: number // lo cobrado por este producto (ya con el descuento)
 }
 
 export interface VentaHistorial {
@@ -33,38 +35,3 @@ export const MOTIVOS_ANULACION = [
 ]
 
 export const DESTINOS_DEVOLUCION = ['Stock disponible', 'Producto dañado (baja)']
-
-export const VENTAS_MOCK: VentaHistorial[] = [
-  {
-    id: 1,
-    comprobante: 'B-0002145',
-    fecha: '2026-08-31 10:22',
-    cliente: 'Cliente mostrador',
-    total: 52272,
-    estado: 'Confirmada',
-    items: [
-      { productoId: 1, nombre: 'Cemento Portland Normal 50kg', cantidadVendida: 4 },
-      { productoId: 3, nombre: 'Ladrillo Hueco 12x18x33 (6 tubos)', cantidadVendida: 10 },
-    ],
-  },
-  {
-    id: 2,
-    comprobante: 'B-0002139',
-    fecha: '2026-08-30 16:05',
-    cliente: 'Estudio ABC',
-    total: 128400,
-    estado: 'Devuelta',
-    items: [
-      { productoId: 2, nombre: 'Hierro Conformado 12mm x 12m', cantidadVendida: 6 },
-    ],
-  },
-  {
-    id: 3,
-    comprobante: 'B-0002130',
-    fecha: '2026-08-29 12:48',
-    cliente: 'Cliente mostrador',
-    total: 9800,
-    estado: 'Anulada',
-    items: [{ productoId: 1, nombre: 'Cemento Portland Normal 50kg', cantidadVendida: 1 }],
-  },
-]
