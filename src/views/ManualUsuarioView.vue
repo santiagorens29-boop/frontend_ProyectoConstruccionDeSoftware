@@ -728,6 +728,53 @@ function alternarProveedoresCompras(id: string) {
           </div>
         </div>
       </div>
+
+      <!-- Sección E: Guía Operativa de Finanzas y Contabilidad -->
+      <div class="col-12">
+        <div class="card border-0 shadow-sm overflow-hidden">
+          <div class="card-header seccion-header text-white py-3 px-4 d-flex align-items-center gap-2">
+            <span class="badge badge-acento">Sección E</span>
+            <h5 class="fw-bold mb-0 fs-6">Guía Operativa de Finanzas y Contabilidad (Períodos, Facturación, Cierre y Libro Diario)</h5>
+          </div>
+          <div class="card-body p-3 p-md-4 bg-white">
+            <div class="accordion" id="accordionGuiaFinanzas">
+              <div
+                v-for="item in guiaFinanzas"
+                :key="item.id"
+                class="accordion-item border rounded mb-2 overflow-hidden"
+              >
+                <h2 class="accordion-header" :id="`heading-${item.id}`">
+                  <button
+                    class="accordion-button fw-semibold text-dark"
+                    :class="{ collapsed: itemAbiertoFinanzas !== item.id }"
+                    type="button"
+                    :aria-expanded="itemAbiertoFinanzas === item.id"
+                    :aria-controls="`collapse-${item.id}`"
+                    @click="alternarFinanzas(item.id)"
+                  >
+                    {{ item.titulo }}
+                  </button>
+                </h2>
+                <div
+                  :id="`collapse-${item.id}`"
+                  class="accordion-collapse collapse"
+                  :class="{ show: itemAbiertoFinanzas === item.id }"
+                  :aria-labelledby="`heading-${item.id}`"
+                >
+                  <div class="accordion-body bg-light-subtle text-secondary">
+                    <p class="mb-3">{{ item.contenido }}</p>
+                    <ul v-if="item.puntosClave && item.puntosClave.length" class="mb-0 ps-3 small">
+                      <li v-for="(punto, idx) in item.puntosClave" :key="idx" class="mb-1">
+                        {{ punto }}
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </template>
